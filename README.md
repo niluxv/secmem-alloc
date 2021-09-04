@@ -1,4 +1,4 @@
-# secmem-alloc ![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue) [![secmem-alloc on crates.io](https://img.shields.io/crates/v/secmem-alloc)](https://crates.io/crates/secmem-alloc)
+# secmem-alloc ![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue) [![secmem-alloc on crates.io](https://img.shields.io/crates/v/secmem-alloc)](https://crates.io/crates/secmem-alloc) [![Source Code Repository](https://img.shields.io/badge/Code-On%20GitHub-blue?logo=GitHub)](https://github.com/niluxv/secmem-alloc)
 
 `secmem-alloc` is a crate designed allocate private/secret memory. It is intended to be used for storing cryptographic secrets in memory. This crate provides custom allocators using various techniques to improve secrecy of the memory, most notably zeroization on deallocation.
 
