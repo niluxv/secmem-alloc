@@ -78,3 +78,7 @@ fn main() {
  - [ ] write a more comprehensive readme
  - [ ] improve documentation
  - [ ] make secure memory allocator available on more platforms (windows)
+
+
+## Documentation
+The API documentation of `secmem-alloc` is available at <https://docs.rs/secmem-alloc/*/secmem_alloc/>.
