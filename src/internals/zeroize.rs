@@ -123,7 +123,6 @@ mod tests {
     use super::*;
 
     #[cfg(feature = "nightly_core_intrinsics")]
-    #[cfg_attr(miri, ignore)] // TODO: remove
     #[test]
     fn test_volatile_memset() {
         let mut array: [u8; 128] = [0xAF; 128];
@@ -168,7 +167,6 @@ mod tests {
     }
 
     #[cfg(feature = "nightly_core_intrinsics")]
-    #[cfg_attr(miri, ignore)] // TODO: remove
     #[test]
     fn test_volatile_memset_lowalign() {
         // ensure we get 8 byte aligned memory

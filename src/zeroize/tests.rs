@@ -27,7 +27,6 @@ fn test_b239_lowalign_zeroizer<Z: MemZeroizer>(z: Z) {
 }
 
 #[cfg(feature = "nightly_core_intrinsics")]
-#[cfg_attr(miri, ignore)] // TODO: remove
 #[test]
 fn test_b127_volatile_memset_zeroizer() {
     test_b127_zeroizer(VolatileMemsetZeroizer);
@@ -67,7 +66,6 @@ fn test_b127_volatile_write8_zeroizer() {
 }
 
 #[cfg(feature = "nightly_core_intrinsics")]
-#[cfg_attr(miri, ignore)] // TODO: remove
 #[test]
 fn test_b239_lowalign_volatile_memset_zeroizer() {
     test_b239_lowalign_zeroizer(VolatileMemsetZeroizer);
