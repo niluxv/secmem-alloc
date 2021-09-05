@@ -1,0 +1,28 @@
+name: Code Coverage
+
+on: [push, pull_request]
+
+jobs:
+  code_cov:
+    name: Code Coverage Tarpaulin + Codecov
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          args: --ignore-tests --all-features
+          out-type: Xml
+
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v2
+        with:
+          files: ./cobertura.xml
