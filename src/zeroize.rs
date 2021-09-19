@@ -11,6 +11,8 @@
 //! crate.
 
 use crate::internals::zeroize as internals;
+use crate::macros::precondition_memory_range;
+use mirai_annotations::{debug_checked_precondition, debug_checked_precondition_eq};
 
 /// Strategy for securely erasing memory.
 ///
@@ -53,6 +55,7 @@ pub trait MemZeroizer {
     /// alignment, especially if this underestimate can be known at compile
     /// time.
     unsafe fn zeroize_mem_minaligned(&self, ptr: *mut u8, len: usize, align: usize) {
+        precondition_memory_range!(ptr, len);
         // SAFETY: caller must uphold the safety contract of `self.zeroize_mem` (and
         // more)
         unsafe { self.zeroize_mem(ptr, len) }
@@ -116,6 +119,7 @@ pub struct VolatileMemsetZeroizer;
 #[cfg(feature = "nightly_core_intrinsics")]
 impl MemZeroizer for VolatileMemsetZeroizer {
     unsafe fn zeroize_mem(&self, ptr: *mut u8, len: usize) {
+        precondition_memory_range!(ptr, len);
         // SAFETY: the caller must uphold the safety contract of
         // `internals::volatile_memset`
         unsafe {
@@ -158,6 +162,7 @@ pub struct LibcZeroizer;
 ))]
 impl MemZeroizer for LibcZeroizer {
     unsafe fn zeroize_mem(&self, ptr: *mut u8, len: usize) {
+        precondition_memory_range!(ptr, len);
         // SAFETY: the caller must uphold the safety contract of
         // `internals::libc_explicit_bzero`
         unsafe {
@@ -183,6 +188,7 @@ pub struct AsmRepStosZeroizer;
 #[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
 impl MemZeroizer for AsmRepStosZeroizer {
     unsafe fn zeroize_mem(&self, ptr: *mut u8, len: usize) {
+        precondition_memory_range!(ptr, len);
         // SAFETY: the caller must uphold the safety contract of
         // `internals::c_asm_ermsb_zeroize`
         unsafe {
@@ -206,6 +212,7 @@ pub struct VolatileWriteZeroizer;
 
 impl MemZeroizer for VolatileWriteZeroizer {
     unsafe fn zeroize_mem(&self, ptr: *mut u8, len: usize) {
+        precondition_memory_range!(ptr, len);
         // SAFETY: the caller must uphold the safety contract of
         // `volatile_write_zeroize_mem`
         unsafe {
@@ -235,7 +242,9 @@ pub struct VolatileWrite8Zeroizer;
 
 impl MemZeroizer for VolatileWrite8Zeroizer {
     unsafe fn zeroize_mem_minaligned(&self, ptr: *mut u8, len: usize, align: usize) {
-        debug_assert_ne!(align, 0);
+        precondition_memory_range!(ptr, len);
+        debug_checked_precondition!(align.is_power_of_two());
+        debug_checked_precondition_eq!((ptr as usize) % align, 0);
         // if we have 8 byte alignment then write 8 bytes at a time, otherwise
         // byte-for-byte
         if align >= 8 {
@@ -255,6 +264,7 @@ impl MemZeroizer for VolatileWrite8Zeroizer {
     }
 
     unsafe fn zeroize_mem(&self, ptr: *mut u8, len: usize) {
+        precondition_memory_range!(ptr, len);
         if (ptr as usize) % 8 == 0 {
             // SAFETY: by the above check, `ptr` is at least 8 byte aligned
             // SAFETY: the other safety requirements of `volatile_write8_zeroize_mem` are
@@ -281,6 +291,7 @@ impl MemZeroizer for VolatileWrite8Zeroizer {
 /// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
 /// the [`std::ptr`] documentation. In particular this function is not atomic.
 unsafe fn volatile_write_zeroize_mem(ptr: *mut u8, len: usize) {
+    precondition_memory_range!(ptr, len);
     for i in 0..len {
         // ptr as usize + i can't overlow because `ptr` is valid for writes of `len`
         let ptr_new: *mut u8 = ((ptr as usize) + i) as *mut u8;
@@ -304,7 +315,8 @@ unsafe fn volatile_write_zeroize_mem(ptr: *mut u8, len: usize) {
 ///
 /// Furthermore, `ptr` *must* be at least 8 byte aligned.
 unsafe fn volatile_write8_zeroize_mem(ptr: *mut u8, len: usize) {
-    debug_assert_eq!((ptr as usize) % 8, 0);
+    precondition_memory_range!(ptr, len);
+    debug_checked_precondition_eq!((ptr as usize) % 8, 0);
     let nblocks = (len - len % 8) / 8;
     for i in 0..nblocks {
         // ptr as usize + 8*i can't overlow because `ptr` is valid for writes of `len`

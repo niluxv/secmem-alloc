@@ -47,3 +47,12 @@ dist-clean: clean
 
 generate-readme:
     cargo doc2readme
+
+dev-mirai:
+    env RUSTFLAGS="-Z always_encode_mir" env RUSTC_WRAPPER=mirai env MIRAI_FLAGS="--diag=library" cargo +nightly-2021-09-17 build --no-default-features --features nightly --features std
+
+clean-mirai: clean
+    env RUSTFLAGS="-Z always_encode_mir" cargo +nightly-2021-09-17 build --no-default-features --features nightly --features std
+    touch src/lib.rs
+    env RUSTFLAGS="-Z always_encode_mir" env RUSTC_WRAPPER=mirai env MIRAI_FLAGS="--diag=library" cargo +nightly-2021-09-17 build --no-default-features --features nightly --features std
+

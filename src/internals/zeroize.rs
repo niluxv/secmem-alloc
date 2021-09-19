@@ -3,6 +3,8 @@
 //! Contains wrappers around intrinsics and ffi functions necessary for the
 //! [`crate::zeroize`] module.
 
+use crate::macros::precondition_memory_range;
+
 /// Volatile write byte to memory.
 ///
 /// This uses the [`core::intrinsics::volatile_set_memory`] intrinsic and can
@@ -15,6 +17,7 @@
 // about bytes (therefore byte alignment), it *always* is.
 #[cfg(feature = "nightly_core_intrinsics")]
 pub unsafe fn volatile_memset(ptr: *mut u8, val: u8, len: usize) {
+    precondition_memory_range!(ptr, len);
     // SAFETY: the caller must uphold the safety contract
     unsafe {
         core::intrinsics::volatile_set_memory(ptr, val, len);
@@ -40,6 +43,7 @@ pub unsafe fn volatile_memset(ptr: *mut u8, val: u8, len: usize) {
     target_env = "musl"
 ))]
 pub unsafe fn libc_explicit_bzero(ptr: *mut u8, len: usize) {
+    precondition_memory_range!(ptr, len);
     // SAFETY: the caller must uphold the safety contract
     unsafe {
         libc::explicit_bzero(ptr as *mut libc::c_void, len as libc::size_t);
@@ -59,6 +63,7 @@ pub unsafe fn libc_explicit_bzero(ptr: *mut u8, len: usize) {
 // about bytes (therefore byte alignment), it *always* is.
 #[cfg(target_os = "netbsd")]
 pub unsafe fn libc_explicit_bzero(ptr: *mut u8, len: usize) {
+    precondition_memory_range!(ptr, len);
     // SAFETY: the caller must uphold the safety contract
     unsafe {
         libc::explicit_memset(
@@ -82,6 +87,7 @@ pub unsafe fn libc_explicit_bzero(ptr: *mut u8, len: usize) {
 // about bytes (therefore byte alignment), it *always* is.
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub unsafe fn libc_explicit_bzero(ptr: *mut u8, len: usize) {
+    precondition_memory_range!(ptr, len);
     // SAFETY: the caller must uphold the safety contract
     unsafe {
         // the zero value is a `c_int` (`i32` by default), but then converted to
@@ -111,6 +117,7 @@ pub unsafe fn libc_explicit_bzero(ptr: *mut u8, len: usize) {
 // about bytes (therefore byte alignment), it *always* is.
 #[cfg(all(target_arch = "x86_64", target_feature = "ermsb", feature = "cc"))]
 pub unsafe fn c_asm_ermsb_zeroize(ptr: *mut u8, len: usize) {
+    precondition_memory_range!(ptr, len);
     extern "C" {
         fn zeroize_volatile(ptr: *mut u8, count: usize);
     }
