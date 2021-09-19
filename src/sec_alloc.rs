@@ -27,6 +27,7 @@ use crate::zeroize::{DefaultMemZeroizer, MemZeroizer};
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::ptr::{self, NonNull};
+use mirai_annotations::debug_checked_precondition;
 
 /// Memory allocator for confidential memory. See the module level
 /// documentation.
@@ -234,7 +235,7 @@ impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
     /// `align` must be a power of 2
     #[must_use]
     pub unsafe fn allocate_zerosized(align: usize) -> NonNull<[u8]> {
-        debug_assert!(align.is_power_of_two());
+        debug_checked_precondition!(align.is_power_of_two());
 
         // SAFETY: creating a pointer is safe, using it not; `dangling` is non-null
         let dangling: *mut u8 = align as *mut u8;
@@ -263,7 +264,7 @@ impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
     ) -> Result<NonNull<[u8]>, AllocError> {
         // like the default implementation of `Allocator::shrink` in the standard
         // library
-        debug_assert!(
+        debug_checked_precondition!(
             new_layout.size() <= old_layout.size(),
             "`new_layout.size()` must be smaller than or equal to `old_layout.size()`"
         );
@@ -303,7 +304,7 @@ impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
         // like the default implementation of `Allocator::grow` in the standard library
-        debug_assert!(
+        debug_checked_precondition!(
             new_layout.size() >= old_layout.size(),
             "`new_layout.size()` must be greater than or equal to `old_layout.size()`"
         );
@@ -332,8 +333,7 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
     // allows for fast zeroization and reduces the chance for (external) memory
     // fragmentation, at the cost of increased internal memory fragmentation.
     fn allocate_zeroed(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
-        debug_assert!(layout.align() != 0); // implied by power of 2, but *very important* (safety)
-        debug_assert!(layout.align().is_power_of_two());
+        debug_checked_precondition!(layout.align().is_power_of_two());
 
         // catch zero sized allocations immediately so we do not have to bother with
         // them
@@ -449,8 +449,8 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
 
         // `ptr` must be returned by this allocator, so it lies in the currently used
         // part of the memory page
-        debug_assert!(self.page.as_ptr() as usize <= ptr.as_ptr() as usize);
-        debug_assert!(
+        debug_checked_precondition!(self.page.as_ptr() as usize <= ptr.as_ptr() as usize);
+        debug_checked_precondition!(
             ptr.as_ptr() as usize <= self.page.as_ptr() as usize + self.stack_offset.get()
         );
 
@@ -503,7 +503,7 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        debug_assert!(
+        debug_checked_precondition!(
             new_layout.size() <= old_layout.size(),
             "`new_layout.size()` must be smaller than or equal to `old_layout.size()`"
         );
@@ -522,8 +522,8 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
 
         // `ptr` must be returned by this allocator, so it lies in the currently used
         // part of the memory page
-        debug_assert!(self.page.as_ptr() as usize <= ptr.as_ptr() as usize);
-        debug_assert!(
+        debug_checked_precondition!(self.page.as_ptr() as usize <= ptr.as_ptr() as usize);
+        debug_checked_precondition!(
             ptr.as_ptr() as usize <= self.page.as_ptr() as usize + self.stack_offset.get()
         );
 
@@ -597,7 +597,7 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        debug_assert!(
+        debug_checked_precondition!(
             new_layout.size() >= old_layout.size(),
             "`new_layout.size()` must be greater than or equal to `old_layout.size()`"
         );
@@ -611,8 +611,8 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
 
         // `ptr` must be returned by this allocator, so it lies in the currently used
         // part of the memory page
-        debug_assert!(self.page.as_ptr() as usize <= ptr.as_ptr() as usize);
-        debug_assert!(
+        debug_checked_precondition!(self.page.as_ptr() as usize <= ptr.as_ptr() as usize);
+        debug_checked_precondition!(
             ptr.as_ptr() as usize <= self.page.as_ptr() as usize + self.stack_offset.get()
         );
 

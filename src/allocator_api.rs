@@ -7,6 +7,7 @@ use crate::util::nonnull_as_mut_ptr;
 use core::alloc::Layout;
 use core::fmt;
 use core::ptr::{self, NonNull};
+use mirai_annotations::debug_checked_precondition;
 
 /// The `AllocError` error indicates an allocation failure
 /// that may be due to resource exhaustion or to
@@ -202,7 +203,7 @@ pub unsafe trait Allocator {
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        debug_assert!(
+        debug_checked_precondition!(
             new_layout.size() >= old_layout.size(),
             "`new_layout.size()` must be greater than or equal to `old_layout.size()`"
         );
@@ -273,7 +274,7 @@ pub unsafe trait Allocator {
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        debug_assert!(
+        debug_checked_precondition!(
             new_layout.size() >= old_layout.size(),
             "`new_layout.size()` must be greater than or equal to `old_layout.size()`"
         );
@@ -347,7 +348,7 @@ pub unsafe trait Allocator {
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        debug_assert!(
+        debug_checked_precondition!(
             new_layout.size() <= old_layout.size(),
             "`new_layout.size()` must be smaller than or equal to `old_layout.size()`"
         );

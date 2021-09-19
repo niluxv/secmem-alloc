@@ -100,6 +100,7 @@
 extern crate alloc;
 
 mod internals;
+mod macros;
 mod util;
 
 #[cfg(not(feature = "nightly_allocator_api"))]

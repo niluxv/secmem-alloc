@@ -10,6 +10,10 @@
 //! [`Vec`]s.
 
 use crate::allocator_api::{AllocError, Allocator};
+use crate::macros::{
+    debug_handleallocerror_precondition, debug_handleallocerror_precondition_valid_layout,
+    precondition_memory_range,
+};
 use crate::zeroize::{DefaultMemZeroizer, DefaultMemZeroizerConstructor, MemZeroizer};
 use alloc::alloc::handle_alloc_error;
 use core::alloc::{GlobalAlloc, Layout};
@@ -66,16 +70,11 @@ where
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         // debug assertions
         // SAFETY: the allocator is not allowed to unwind (panic!)
-        if cfg!(debug_assertions) {
-            // check that `layout` is a valid layout
-            if Layout::from_size_align(layout.size(), layout.align()).is_err() {
-                handle_alloc_error(layout);
-            }
-            // zero sized allocations are not allowed
-            if layout.size() == 0 {
-                handle_alloc_error(layout);
-            }
-        }
+        // check that `layout` is a valid layout
+        debug_handleallocerror_precondition_valid_layout!(layout);
+        // zero sized allocations are not allowed
+        debug_handleallocerror_precondition!(layout.size() != 0, layout);
+
         // SAFETY: caller must uphold the safety contract of `GlobalAlloc::alloc`.
         unsafe { self.backend_alloc.alloc(layout) }
     }
@@ -83,24 +82,22 @@ where
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         // debug assertions
         // SAFETY: the allocator is not allowed to unwind (panic!)
+        // null pointers are never allowed
+        debug_handleallocerror_precondition!(!ptr.is_null(), layout);
+        // check that `layout` is a valid layout
+        debug_handleallocerror_precondition_valid_layout!(layout);
+        // zero sized allocations are not allowed
+        debug_handleallocerror_precondition!(layout.size() != 0, layout);
+        // you can't wrap around the address space
+        precondition_memory_range!(ptr, layout.size());
+
         if cfg!(debug_assertions) {
-            // null pointers are never allowed
-            if ptr.is_null() {
-                handle_alloc_error(layout);
-            }
-            // check that `layout` is a valid layout
-            if Layout::from_size_align(layout.size(), layout.align()).is_err() {
-                handle_alloc_error(layout);
-            }
-            // zero sized allocations are not allowed
-            if layout.size() == 0 {
-                handle_alloc_error(layout);
-            }
             // you can't wrap around the address space
             if (ptr as usize).checked_add(layout.size()).is_none() {
                 handle_alloc_error(layout);
             }
         }
+
         // securely wipe the deallocated memory
         // SAFETY: `ptr` is valid for writes of `layout.size()` bytes since it was
         // previously successfully allocated (by the safety assumption on this function)
@@ -117,16 +114,11 @@ where
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         // debug assertions
         // SAFETY: the allocator is not allowed to unwind (panic!)
-        if cfg!(debug_assertions) {
-            // check that `layout` is a valid layout
-            if Layout::from_size_align(layout.size(), layout.align()).is_err() {
-                handle_alloc_error(layout);
-            }
-            // zero sized allocations are not allowed
-            if layout.size() == 0 {
-                handle_alloc_error(layout);
-            }
-        }
+        // check that `layout` is a valid layout
+        debug_handleallocerror_precondition_valid_layout!(layout);
+        // zero sized allocations are not allowed
+        debug_handleallocerror_precondition!(layout.size() != 0, layout);
+
         // SAFETY: caller must uphold the safety contract of
         // `GlobalAlloc::alloc_zeroed`.
         unsafe { self.backend_alloc.alloc_zeroed(layout) }
@@ -147,36 +139,24 @@ where
 {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         // debug assertions
-        if cfg!(debug_assertions) {
-            // check that `layout` is a valid layout
-            if Layout::from_size_align(layout.size(), layout.align()).is_err() {
-                handle_alloc_error(layout);
-            }
-        }
+        // check that `layout` is a valid layout
+        debug_handleallocerror_precondition_valid_layout!(layout);
 
         self.backend_alloc.allocate(layout)
     }
 
     fn allocate_zeroed(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         // debug assertions
-        if cfg!(debug_assertions) {
-            // check that `layout` is a valid layout
-            if Layout::from_size_align(layout.size(), layout.align()).is_err() {
-                handle_alloc_error(layout);
-            }
-        }
+        // check that `layout` is a valid layout
+        debug_handleallocerror_precondition_valid_layout!(layout);
 
         self.backend_alloc.allocate_zeroed(layout)
     }
 
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         // debug assertions
-        if cfg!(debug_assertions) {
-            // check that `layout` is a valid layout
-            if Layout::from_size_align(layout.size(), layout.align()).is_err() {
-                handle_alloc_error(layout);
-            }
-        }
+        // check that `layout` is a valid layout
+        debug_handleallocerror_precondition_valid_layout!(layout);
 
         // securely wipe the deallocated memory
         // SAFETY: `ptr` is valid for writes of `layout.size()` bytes since it was
