@@ -2,7 +2,7 @@
 //!
 //! Mainly stable replacements for nightly only functionality.
 
-use std::ptr::NonNull;
+use core::ptr::NonNull;
 
 #[cfg(not(feature = "nightly_core_intrinsics"))]
 pub(crate) fn likely(b: bool) -> bool {
