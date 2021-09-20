@@ -690,6 +690,7 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
 }
 
 #[cfg(test)]
+#[cfg(unix)]
 mod tests {
     use super::*;
     use crate::zeroize::TestZeroizer;
