@@ -32,6 +32,9 @@ libc = "0.2"
 mirai-annotations = "1.12"
 thiserror = {version = "1.0", optional = true}
 
+[target.'cfg(windows)'.dependencies]
+winapi = {version = "0.3.9", features = ["impl-default", "memoryapi", "sysinfoapi"]}
+
 [dev-dependencies]
 criterion = "0.3"
 

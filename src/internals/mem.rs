@@ -16,23 +16,42 @@ pub fn page_size() -> usize {
     get_sys_page_size()
 }
 
-/// Return the page size on the running system by querying libc.
-#[cfg(all(unix, not(miri)))]
-fn get_sys_page_size() -> size_t {
-    unsafe {
-        // the pagesize must always fit in a `size_t` (`usize`)
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        {
-            libc::sysconf(libc::_SC_PAGESIZE) as size_t
+cfg_if::cfg_if! {
+    if #[cfg(miri)] {
+        /// Page size shim for miri.
+        #[cfg(not(tarpaulin_include))]
+        fn get_sys_page_size() -> size_t {
+            4096
+        }
+    } else if #[cfg(unix)] {
+        /// Return the page size on the running system by querying libc.
+        fn get_sys_page_size() -> size_t {
+            unsafe {
+                // the pagesize must always fit in a `size_t` (`usize`)
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    libc::sysconf(libc::_SC_PAGESIZE) as size_t
+                }
+            }
+        }
+    } else if #[cfg(windows)] {
+        /// Return the page size on the running system by querying kernel32.lib.
+        fn get_sys_page_size() -> size_t {
+            use winapi::um::sysinfoapi::{LPSYSTEM_INFO, GetSystemInfo, SYSTEM_INFO};
+
+            let mut sysinfo = SYSTEM_INFO::default();
+            let sysinfo_ptr: LPSYSTEM_INFO = &mut sysinfo as *mut SYSTEM_INFO;
+            // SAFETY: `sysinfo_ptr` points to a valid (empty/all zeros) `SYSTEM_INFO`
+            unsafe {
+                GetSystemInfo(sysinfo_ptr)
+            };
+            // the pagesize must always fit in a `size_t` (`usize`) (on windows it is a `u32`)
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            {
+                sysinfo.dwPageSize as size_t
+            }
         }
     }
-}
-
-/// Page size shim for miri.
-#[cfg(miri)]
-#[cfg(not(tarpaulin_include))]
-fn get_sys_page_size() -> size_t {
-    4096
 }
 
 /// Could not allocate a memory page.
@@ -62,40 +81,59 @@ pub struct Page {
     page_size: usize,
 }
 
-#[cfg(all(unix, not(miri)))]
-impl Drop for Page {
-    fn drop(&mut self) {
-        let ptr = self.as_c_ptr_mut();
-        unsafe {
-            // SAFETY: we allocated/mapped this page in the constructor so it is safe to
-            // unmap now `munmap` also unlocks a page if it was locked so it is
-            // not necessary to `munlock` the page if it was locked.
-            libc::munmap(ptr, self.page_size());
+cfg_if::cfg_if! {
+    if #[cfg(miri)] {
+        // miri shim
+        #[cfg(not(tarpaulin_include))]
+        impl Drop for Page {
+            fn drop(&mut self) {
+                let ptr = self.as_c_ptr_mut();
+                let page_size = self.page_size();
+                unsafe {
+                    // SAFETY: we allocated/mapped this page in the constructor so it is safe to
+                    // unmap now `munmap` also unlocks a page if it was locked so it is
+                    // not necessary to `munlock` the page if it was locked.
+                    //libc::munmap(ptr, self.page_size());
+                    std::alloc::dealloc(
+                        ptr as *mut u8,
+                        std::alloc::Layout::from_size_align(page_size, page_size).unwrap(),
+                    );
+                }
+                // SAFETY: `NonNull<u8>` and `usize` both do not drop so we need not
+                // worry about subsequent drops
+            }
         }
-        // SAFETY: `NonNull<u8>` and `usize` both do not drop so we need not
-        // worry about subsequent drops
-    }
-}
+    } else if #[cfg(unix)] {
+        impl Drop for Page {
+            fn drop(&mut self) {
+                let ptr = self.as_c_ptr_mut();
+                unsafe {
+                    // SAFETY: we allocated/mapped this page in the constructor so it is safe to
+                    // unmap now `munmap` also unlocks a page if it was locked so it is
+                    // not necessary to `munlock` the page if it was locked.
+                    libc::munmap(ptr, self.page_size());
+                }
+                // SAFETY: `NonNull<u8>` and `usize` both do not drop so we need not
+                // worry about subsequent drops
+            }
+        }
+    } else if #[cfg(windows)] {
+        impl Drop for Page {
+            fn drop(&mut self) {
+                use winapi::um::memoryapi::VirtualFree;
+                use winapi::um::winnt::MEM_RELEASE;
+                use winapi::shared::minwindef::LPVOID;
 
-// miri shim
-#[cfg(miri)]
-#[cfg(not(tarpaulin_include))]
-impl Drop for Page {
-    fn drop(&mut self) {
-        let ptr = self.as_c_ptr_mut();
-        let page_size = self.page_size();
-        unsafe {
-            // SAFETY: we allocated/mapped this page in the constructor so it is safe to
-            // unmap now `munmap` also unlocks a page if it was locked so it is
-            // not necessary to `munlock` the page if it was locked.
-            //libc::munmap(ptr, self.page_size());
-            std::alloc::dealloc(
-                ptr as *mut u8,
-                std::alloc::Layout::from_size_align(page_size, page_size).unwrap(),
-            );
+                let ptr: LPVOID = self.as_c_ptr_mut();
+                unsafe {
+                    // SAFETY: we allocated/mapped this page in the constructor so it is safe to
+                    // unmap now
+                    VirtualFree(ptr, self.page_size(), MEM_RELEASE);
+                }
+                // SAFETY: `NonNull<u8>` and `usize` both do not drop so we need not
+                // worry about subsequent drops
+            }
         }
-        // SAFETY: `NonNull<u8>` and `usize` both do not drop so we need not
-        // worry about subsequent drops
     }
 }
 
