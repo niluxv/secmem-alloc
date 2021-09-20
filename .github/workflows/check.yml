@@ -5,7 +5,10 @@ on: [push, pull_request]
 jobs:
   check_stable:
     name: Check Stable
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
