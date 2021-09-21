@@ -153,7 +153,7 @@ impl<Z: MemZeroizer> Drop for SecStackSinglePageAlloc<Z> {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
     /// Create a new `SecStackSinglePageAlloc` allocator. This allocates one
     /// page of memory to be used by the allocator. This page is only
@@ -169,7 +169,7 @@ impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
     /// on Linux. A process with `CAP_SYS_RESOURCE` can change the `mlock`
     /// limit using `setrlimit` from libc.
     pub fn new_with_zeroizer(zeroizer: Z) -> Result<Self, mem::PageAllocError> {
-        let page = mem::Page::alloc_new_noreserve_mlock()?;
+        let page = mem::Page::alloc_new_lock()?;
         //let stack_ptr = page.page_ptr_nonnull();
         Ok(Self {
             zeroizer,
@@ -181,7 +181,7 @@ impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 impl<Z: MemZeroizer + Default> SecStackSinglePageAlloc<Z> {
     /// Create a new `SecStackSinglePageAlloc` allocator. This allocates one
     /// page of memory to be used by the allocator. This page is only

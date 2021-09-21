@@ -5,7 +5,10 @@ on: [push, pull_request]
 jobs:
   check_stable:
     name: Check Stable
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -24,7 +27,10 @@ jobs:
 
   test_nightly_devfeatures:
     name: Test Suite (Nightly) Dev Features
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -44,7 +50,10 @@ jobs:
 
   test_nightly_allfeatures:
     name: Test Suite (Nightly) All Features
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
