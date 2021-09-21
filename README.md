@@ -77,7 +77,10 @@ fn main() {
 ## TODOs
  - [ ] write a more comprehensive readme
  - [ ] improve documentation
- - [ ] make secure memory allocator available on more platforms (windows)
+
+
+## Changelog
+See `CHANGELOG.md`.
 
 
 ## Documentation
