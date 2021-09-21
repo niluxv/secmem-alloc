@@ -10,7 +10,7 @@ readme = "README.md"
 categories = ["no-std", "memory-management", "cryptography"]
 keywords = ["allocator", "secure", "memory"]
 repository = "https://github.com/niluxv/secmem-alloc"
-include = ["src/**/*", "COPYING", "LICENSE.*", "README.md", "build.rs"]
+include = ["src/**/*", "tests", "benches", "COPYING", "LICENSE.*", "README.md", "build.rs"]
 
 [package.metadata.docs.rs]
 all-features = true
