@@ -1,7 +1,7 @@
 # some of these options are still unstable
 unstable_features = true
-# use edition 2018 by default
-edition = "2018"
+# use edition 2021 by default
+edition = "2021"
 # make formatting somewhat more aggressive
 format_code_in_doc_comments = true
 format_macro_matchers = true
