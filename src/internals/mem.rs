@@ -241,7 +241,18 @@ cfg_if::cfg_if! {
                 let page_size: size_t = page_size();
                 let prot: c_int = libc::PROT_READ | libc::PROT_WRITE;
                 // NORESERVE disables backing the memory map with swap space
-                let flags = libc::MAP_PRIVATE | libc::MAP_NORESERVE | libc::MAP_ANONYMOUS;
+                // it is not available (anymore) on FreeBSD/DragonFlyBSD (never implemented)
+                // also unimplemented on other BSDs, but the flag is there for compat...
+                // FreeBSD + DragonFlyBSD have a `MAP_NOCORE` flag which excludes this memory
+                // from being included in a core dump (but ideally, disable core dumps entirely)
+                cfg_if::cfg_if!{
+                    if #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))] {
+                        let flags = libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_NOCORE;
+                    } else {
+                        let flags = libc::MAP_PRIVATE | libc::MAP_NORESERVE | libc::MAP_ANONYMOUS;
+                    }
+                }
+
                 let fd: c_int = -1;
                 let offset: off_t = 0;
 
