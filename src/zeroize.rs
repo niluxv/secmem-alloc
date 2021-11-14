@@ -290,17 +290,18 @@ impl MemZeroizer for VolatileWrite8Zeroizer {
 /// # Safety
 /// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
 /// the [`std::ptr`] documentation. In particular this function is not atomic.
-unsafe fn volatile_write_zeroize_mem(ptr: *mut u8, len: usize) {
+unsafe fn volatile_write_zeroize_mem(mut ptr: *mut u8, len: usize) {
     precondition_memory_range!(ptr, len);
-    for i in 0..len {
-        // ptr as usize + i can't overlow because `ptr` is valid for writes of `len`
-        let ptr_new: *mut u8 = ((ptr as usize) + i) as *mut u8;
-        // SAFETY: `ptr` is valid for writes of `len` bytes, so `ptr_new` is valid for a
-        // byte write SAFETY: byte writes only require byte alignment which
-        // immediate
+    for _i in 0..len {
+        // SAFETY: `ptr` originally pointed into an allocation of `len` bytes so now,
+        // after `_i` steps `len - _i > 0` bytes are left, so `ptr` is valid for
+        // a byte write
         unsafe {
-            core::ptr::write_volatile(ptr_new, 0u8);
+            core::ptr::write_volatile(ptr, 0u8);
         }
+        // SAFETY: after increment, `ptr` points into the same allocation if `_i == len`
+        // or one byte past it, so `add` is sound
+        ptr = unsafe { ptr.add(1) };
     }
 }
 
