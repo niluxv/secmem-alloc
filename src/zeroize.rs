@@ -54,7 +54,7 @@ pub trait MemZeroizer {
     /// known at compile time. Therefore it is fine to underestimate the
     /// alignment, especially if this underestimate can be known at compile
     /// time.
-    unsafe fn zeroize_mem_minaligned(&self, ptr: *mut u8, len: usize, align: usize) {
+    unsafe fn zeroize_mem_minaligned(&self, ptr: *mut u8, len: usize, _align: usize) {
         precondition_memory_range!(ptr, len);
         // SAFETY: caller must uphold the safety contract of `self.zeroize_mem` (and
         // more)
@@ -290,17 +290,18 @@ impl MemZeroizer for VolatileWrite8Zeroizer {
 /// # Safety
 /// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
 /// the [`std::ptr`] documentation. In particular this function is not atomic.
-unsafe fn volatile_write_zeroize_mem(ptr: *mut u8, len: usize) {
+unsafe fn volatile_write_zeroize_mem(mut ptr: *mut u8, len: usize) {
     precondition_memory_range!(ptr, len);
-    for i in 0..len {
-        // ptr as usize + i can't overlow because `ptr` is valid for writes of `len`
-        let ptr_new: *mut u8 = ((ptr as usize) + i) as *mut u8;
-        // SAFETY: `ptr` is valid for writes of `len` bytes, so `ptr_new` is valid for a
-        // byte write SAFETY: byte writes only require byte alignment which
-        // immediate
+    for _i in 0..len {
+        // SAFETY: `ptr` originally pointed into an allocation of `len` bytes so now,
+        // after `_i` steps `len - _i > 0` bytes are left, so `ptr` is valid for
+        // a byte write
         unsafe {
-            core::ptr::write_volatile(ptr_new, 0u8);
+            core::ptr::write_volatile(ptr, 0u8);
         }
+        // SAFETY: after increment, `ptr` points into the same allocation if `_i == len`
+        // or one byte past it, so `add` is sound
+        ptr = unsafe { ptr.add(1) };
     }
 }
 
@@ -314,51 +315,46 @@ unsafe fn volatile_write_zeroize_mem(ptr: *mut u8, len: usize) {
 /// the [`std::ptr`] documentation. In particular this function is not atomic.
 ///
 /// Furthermore, `ptr` *must* be at least 8 byte aligned.
-unsafe fn volatile_write8_zeroize_mem(ptr: *mut u8, len: usize) {
+unsafe fn volatile_write8_zeroize_mem(mut ptr: *mut u8, len: usize) {
     precondition_memory_range!(ptr, len);
     debug_checked_precondition_eq!((ptr as usize) % 8, 0);
     let nblocks = (len - len % 8) / 8;
-    for i in 0..nblocks {
-        // ptr as usize + 8*i can't overlow because `ptr` is valid for writes of `len`
-        // SAFETY: `8*i + 8 =<  len`, so `ptr_new` will be valid for 8 bytes write
-        let ptr_new: *mut u8 = ((ptr as usize) + 8 * i) as *mut u8;
-        // SAFETY: `ptr` is valid for writes of `len` bytes, so `ptr_new` is valid for 8
-        // byte write SAFETY: `ptr` is 8 byte aligned, therefore `ptr_new` too
-        // (a multiple of 8 is added)
+    for _i in 0..nblocks {
+        // SAFETY: `ptr` originally pointed into an allocation of `len` bytes so now,
+        // after `_i` steps `len - 8*_i >= 8` bytes are left, so `ptr` is valid
+        // for an 8 byte write SAFETY: `ptr` was originally 8 byte aligned by
+        // caller contract and we only added a multiple of 8 so it is still 8
+        // byte aligned
         unsafe {
-            core::ptr::write_volatile(ptr_new as *mut u64, 0u64);
+            core::ptr::write_volatile(ptr.cast::<u64>(), 0u64);
         }
+        // SAFETY: after increment, `ptr` points into the same allocation or (if `8*_i
+        // == len`) at most one byte past it, so `add` is sound; `ptr` stays 8
+        // byte aligned
+        ptr = unsafe { ptr.add(8) };
     }
     // if `len` is not a multiple of 8 then the remainder (at most 7 bytes) needs to
-    // be zeroized if the remainder is at least 4 bytes we zero these with a
-    // single write
+    // be zeroized; if the remainder is at least 4 bytes we zero these with a single
+    // write
     if len % 8 >= 4 {
-        // `(ptr as usize) + (len - len % 8)` doesn't overflow since `ptr` is valid for
-        // `len` byte writes and `len % 8` is non-zero SAFETY: `(len - len % 8)
-        // + 4 =< len`
-        let ptr_new: *mut u32 = ((ptr as usize) + (len - len % 8)) as *mut u32;
-        // SAFETY: therefore, since `ptr` is valid for `len` byte writes, `ptr_new` is
-        // valid for a 4 byte write SAFETY: `ptr` is 8 byte aligned, therefore
-        // `ptr_new` too (a multiple of 8 is added)
+        // SAFETY: `ptr` has been incremented by a multiple of 8 <= `len` so `ptr`
+        // points to an allocation of `len % 8 >= 4` bytes, so `ptr` is valid
+        // for a 4 byte write SAFETY: `ptr` is still 8 byte aligned so also 4
+        // byte aligned
         unsafe {
-            core::ptr::write_volatile(ptr_new, 0u32);
+            core::ptr::write_volatile(ptr.cast::<u32>(), 0u32);
         }
+        ptr = unsafe { ptr.add(4) };
     }
     // the final remainder (at most 3 bytes) is zeroed byte-for-byte
-    for i in 0..(len % 4) {
-        // `(ptr as usize) - 1 + len - i` doesn't overflow overlow because `ptr` is
-        // valid for `len` writes, therefore non-zero, and the `+ len` then can't
-        // overflow since a write can't wrap the address space the trickery with
-        // the minus results in the most performant machine code (saves 1 instruction
-        // asm)
-        let ptr_new: *mut u8 = ((ptr as usize) - 1 + len - i) as *mut u8;
-        // SAFETY: `(ptr as usize) - 1 + len - i` ranges precisely `(len - len %
-        // 4)..len` SAFETY: `ptr` is valid for writes of `len` bytes, so
-        // `ptr_new` is valid for a byte write SAFETY: byte writes only require
-        // byte alignment which immediate
+    // SAFETY: `ptr` has been incremented by a multiple of 4 <= `len` so `ptr`
+    // points to an allocation of `len % 4` bytes, so `ptr` can be written to
+    // and incremented `len % 4` times
+    for _i in 0..(len % 4) {
         unsafe {
-            core::ptr::write_volatile(ptr_new, 0u8);
+            core::ptr::write_volatile(ptr, 0u8);
         }
+        ptr = unsafe { ptr.add(1) };
     }
 }
 

@@ -1,10 +1,14 @@
 //! Helper functions for allocating memory and working with memory pages.
 
+#[cfg(unix)]
 use core::ffi::c_void;
 use core::ptr::NonNull;
+#[cfg(unix)]
 use libc::{c_int, off_t, size_t};
 #[cfg(feature = "std")]
 use thiserror::Error;
+#[cfg(windows)]
+use winapi::ctypes::c_void;
 
 /// Return the page size on the running system.
 ///
@@ -20,12 +24,12 @@ cfg_if::cfg_if! {
     if #[cfg(miri)] {
         /// Page size shim for miri.
         #[cfg(not(tarpaulin_include))]
-        fn get_sys_page_size() -> size_t {
+        fn get_sys_page_size() -> usize {
             4096
         }
     } else if #[cfg(unix)] {
         /// Return the page size on the running system by querying libc.
-        fn get_sys_page_size() -> size_t {
+        fn get_sys_page_size() -> usize {
             unsafe {
                 // the pagesize must always fit in a `size_t` (`usize`)
                 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -36,7 +40,7 @@ cfg_if::cfg_if! {
         }
     } else if #[cfg(windows)] {
         /// Return the page size on the running system by querying kernel32.lib.
-        fn get_sys_page_size() -> size_t {
+        fn get_sys_page_size() -> usize {
             use winapi::um::sysinfoapi::{LPSYSTEM_INFO, GetSystemInfo, SYSTEM_INFO};
 
             let mut sysinfo = SYSTEM_INFO::default();
@@ -45,10 +49,10 @@ cfg_if::cfg_if! {
             unsafe {
                 GetSystemInfo(sysinfo_ptr)
             };
-            // the pagesize must always fit in a `size_t` (`usize`) (on windows it is a `u32`)
+            // the pagesize must always fit in a `usize` (on windows it is a `u32`)
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             {
-                sysinfo.dwPageSize as size_t
+                sysinfo.dwPageSize as usize
             }
         }
     }
@@ -241,7 +245,18 @@ cfg_if::cfg_if! {
                 let page_size: size_t = page_size();
                 let prot: c_int = libc::PROT_READ | libc::PROT_WRITE;
                 // NORESERVE disables backing the memory map with swap space
-                let flags = libc::MAP_PRIVATE | libc::MAP_NORESERVE | libc::MAP_ANONYMOUS;
+                // it is not available (anymore) on FreeBSD/DragonFlyBSD (never implemented)
+                // also unimplemented on other BSDs, but the flag is there for compat...
+                // FreeBSD + DragonFlyBSD have a `MAP_NOCORE` flag which excludes this memory
+                // from being included in a core dump (but ideally, disable core dumps entirely)
+                cfg_if::cfg_if!{
+                    if #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))] {
+                        let flags = libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_NOCORE;
+                    } else {
+                        let flags = libc::MAP_PRIVATE | libc::MAP_NORESERVE | libc::MAP_ANONYMOUS;
+                    }
+                }
+
                 let fd: c_int = -1;
                 let offset: off_t = 0;
 
