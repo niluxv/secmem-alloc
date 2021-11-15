@@ -906,13 +906,13 @@ mod tests {
             let mut heap_mem = Vec::<u8, _>::with_capacity_in(9, &allocator);
             allocator.consistency_check();
             {
-                let heap_mem2 = Box::new_in(37_u64, &allocator);
+                let _heap_mem2 = Box::new_in(37_u64, &allocator);
                 allocator.consistency_check();
                 heap_mem.reserve(10);
                 allocator.consistency_check();
                 heap_mem.reserve(17);
                 allocator.consistency_check();
-            } // drop `heap_mem2`
+            } // drop `_heap_mem2`
             allocator.consistency_check();
         } // drop `heap_mem`
         allocator.consistency_check();
@@ -948,13 +948,13 @@ mod tests {
             let mut heap_mem = Vec::<u8, _>::with_capacity_in(9, &allocator);
             allocator.consistency_check();
             {
-                let heap_mem2 = Box::new_in(37_u64, &allocator);
+                let _heap_mem2 = Box::new_in(37_u64, &allocator);
                 allocator.consistency_check();
                 heap_mem.push(1);
                 allocator.consistency_check();
                 heap_mem.shrink_to_fit();
                 allocator.consistency_check();
-            } // drop `heap_mem2`
+            } // drop `_heap_mem2`
             allocator.consistency_check();
         } // drop `heap_mem`
         allocator.consistency_check();

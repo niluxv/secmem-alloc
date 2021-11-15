@@ -54,7 +54,7 @@ pub trait MemZeroizer {
     /// known at compile time. Therefore it is fine to underestimate the
     /// alignment, especially if this underestimate can be known at compile
     /// time.
-    unsafe fn zeroize_mem_minaligned(&self, ptr: *mut u8, len: usize, align: usize) {
+    unsafe fn zeroize_mem_minaligned(&self, ptr: *mut u8, len: usize, _align: usize) {
         precondition_memory_range!(ptr, len);
         // SAFETY: caller must uphold the safety contract of `self.zeroize_mem` (and
         // more)

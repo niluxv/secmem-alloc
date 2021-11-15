@@ -6,8 +6,8 @@ static GLOBAL: ZeroizeAlloc<System> = ZeroizeAlloc::new(System);
 
 #[test]
 fn box_9b() {
-    let boxed = Box::new([1_u8; 9]);
-    // drop `boxed`
+    let _boxed = Box::new([1_u8; 9]);
+    // drop `_boxed`
 }
 
 #[test]
