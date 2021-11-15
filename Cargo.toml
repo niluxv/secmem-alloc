@@ -19,7 +19,7 @@ all-features = true
 
 [features]
 default = ["std", "cc"]
-std = ["thiserror"]
+std = ["thiserror", "winapi/std"]
 nightly_allocator_api = []
 nightly_core_intrinsics = []
 nightly = ["nightly_allocator_api", "nightly_core_intrinsics"]

@@ -5,10 +5,10 @@ use core::ffi::c_void;
 use core::ptr::NonNull;
 #[cfg(unix)]
 use libc::{c_int, off_t, size_t};
-#[cfg(windows)]
-use winapi::ctypes::c_void;
 #[cfg(feature = "std")]
 use thiserror::Error;
+#[cfg(windows)]
+use winapi::ctypes::c_void;
 
 /// Return the page size on the running system.
 ///
