@@ -29,7 +29,6 @@ macro_rules! debug_handleallocerror_precondition_valid_layout {
 
 macro_rules! precondition_memory_range {
     ($ptr:expr, $len:expr) => {
-        // !($ptr.is_null())
         mirai_annotations::precondition!(!($ptr.is_null()), "null pointer is never valid");
         mirai_annotations::precondition!(
             ($ptr as usize).checked_add($len).is_some(),

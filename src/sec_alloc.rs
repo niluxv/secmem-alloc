@@ -22,7 +22,7 @@
 
 use crate::allocator_api::{AllocError, Allocator};
 use crate::internals::mem;
-use crate::util::{nonnull_as_mut_ptr, unlikely};
+use crate::util::{align_ptr_mut, nonnull_as_mut_ptr, unlikely};
 use crate::zeroize::{DefaultMemZeroizer, MemZeroizer};
 use core::alloc::Layout;
 use core::cell::Cell;
@@ -388,25 +388,23 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
             Ok(alloc_slice_ptr)
         } else {
             // slower path for large align
-            // subtract does not wrap since `layout.align()` is a power of 2, hence > 0
-            let align_minus_one = layout.align() - 1;
             // first pointer >= `stack_ptr` which is `layout.align()` bytes aligned
-            let next_aligned_ptr =
-                (stack_ptr as usize).wrapping_add(align_minus_one) & !align_minus_one;
-            // if this wraps the address space, then the result is 0 and the layout doesn't
-            // fit the remaining memory of our page, so error
-            if unlikely(next_aligned_ptr == 0) {
+            // SAFETY: `layout.align()` is a power of 2
+            let next_aligned_ptr = unsafe { align_ptr_mut(stack_ptr, layout.align()) };
+            // if this wraps the address space, then the result is null and the layout
+            // doesn't fit the remaining memory of our page, so error
+            if unlikely(next_aligned_ptr.is_null()) {
                 return Err(AllocError);
             }
             // offset of `next_align_ptr` relative from our base page pointer; doesn't wrap
             // since `next_align_ptr` is higher in the memory than `stack_ptr`
-            let next_align_pageoffset = next_aligned_ptr - (self.page.as_ptr() as usize);
+            let next_align_pageoffset = next_aligned_ptr as usize - (self.page.as_ptr() as usize);
             // error if `next_aligned_ptr` falls outside of our page
             if next_align_pageoffset >= self.page.page_size() {
                 return Err(AllocError);
             }
             // the new allocation will start at `next_aligned_ptr` and be `rounded_req_size`
-            // long error if we do not have enough space for this allocation
+            // long; error if we do not have enough space for this allocation
             // by the previous branch `self.page.page_size() - next_align_pageoffset` won't
             // wrap (`self.page.page_size() - next_align_pageoffset` is the
             // number of bytes available)
@@ -417,7 +415,7 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
             // if we reach here then [next_aligned_ptr .. next_aligned_ptr +
             // rounded_req_size] lies entirely within our memory page
             let alloc_slice_ptr: *mut [u8] =
-                ptr::slice_from_raw_parts_mut(next_aligned_ptr as *mut u8, rounded_req_size);
+                ptr::slice_from_raw_parts_mut(next_aligned_ptr, rounded_req_size);
             // SAFETY: the page pointer is nonnull and the addition doesn't wrap so the
             // result is nonnull
             let alloc_slice_ptr: NonNull<[u8]> = unsafe { NonNull::new_unchecked(alloc_slice_ptr) };
