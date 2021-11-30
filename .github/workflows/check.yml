@@ -152,6 +152,7 @@ jobs:
         env:
           MIRI_LOG: 1
           MIRI_BACKTRACE: 1
+          MIRIFLAGS: -Zmiri-check-number-validity
 
   miri_raw_ptr:
     name: Miri tag-raw-pointers
@@ -176,4 +177,4 @@ jobs:
         env:
           MIRI_LOG: 1
           MIRI_BACKTRACE: 1
-          MIRIFLAGS: -Zmiri-tag-raw-pointers
+          MIRIFLAGS: -Zmiri-tag-raw-pointers -Zmiri-check-number-validity

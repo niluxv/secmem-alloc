@@ -9,10 +9,10 @@ test:
     cargo +nightly test --all-features
 
 miri:
-    cargo +nightly miri test --all-features
+    env MIRIFLAGS="-Zmiri-check-number-validity" cargo +nightly miri test --all-features
 
 miri-raw-ptr:
-    env MIRIFLAGS="-Zmiri-tag-raw-pointers" cargo +nightly miri test --all-features
+    env MIRIFLAGS="-Zmiri-tag-raw-pointers -Zmiri-check-number-validity" cargo +nightly miri test --all-features
 
 full-test: test
     env CC="clang" env CFLAGS="-fsanitize=address -fno-omit-frame-pointer" env RUSTFLAGS="-C target-cpu=native -Z sanitizer=address" cargo +nightly test -Z build-std --target x86_64-unknown-linux-gnu --tests --all-features
