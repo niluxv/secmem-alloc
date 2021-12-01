@@ -152,3 +152,29 @@ jobs:
         env:
           MIRI_LOG: 1
           MIRI_BACKTRACE: 1
+          MIRIFLAGS: -Zmiri-check-number-validity
+
+  miri_raw_ptr:
+    name: Miri tag-raw-pointers
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Get latest toolchain version with miri
+        run: echo "TOOLCHAIN=$(curl -s https://rust-lang.github.io/rustup-components-history/x86_64-unknown-linux-gnu/miri)" >> $GITHUB_ENV
+
+      - name: Install latest nightly toolchain with miri
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly-${{ env.TOOLCHAIN }}
+          override: true
+          components: rust-src, miri
+
+      - name: Run cargo miri test
+        run: cargo miri test --all-features
+        env:
+          MIRI_LOG: 1
+          MIRI_BACKTRACE: 1
+          MIRIFLAGS: -Zmiri-tag-raw-pointers -Zmiri-check-number-validity

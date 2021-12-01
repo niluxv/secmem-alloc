@@ -9,7 +9,10 @@ test:
     cargo +nightly test --all-features
 
 miri:
-    cargo +nightly miri test --all-features
+    env MIRIFLAGS="-Zmiri-check-number-validity" cargo +nightly miri test --all-features
+
+miri-raw-ptr:
+    env MIRIFLAGS="-Zmiri-tag-raw-pointers -Zmiri-check-number-validity" cargo +nightly miri test --all-features
 
 full-test: test
     env CC="clang" env CFLAGS="-fsanitize=address -fno-omit-frame-pointer" env RUSTFLAGS="-C target-cpu=native -Z sanitizer=address" cargo +nightly test -Z build-std --target x86_64-unknown-linux-gnu --tests --all-features
@@ -30,7 +33,7 @@ fmt-check:
 clippy:
     cargo +nightly clippy --all-features
 
-full-check: check full-test doc clippy fmt-check
+full-check: check full-test doc clippy fmt-check miri miri-raw-ptr
 
 bench:
     env RUSTFLAGS="-C target-cpu=native" cargo +nightly bench --all-features
@@ -49,10 +52,10 @@ generate-readme:
     cargo doc2readme
 
 dev-mirai:
-    env RUSTFLAGS="-Z always_encode_mir" env RUSTC_WRAPPER=mirai env MIRAI_FLAGS="--diag=library" cargo +nightly-2021-09-17 build --no-default-features --features nightly --features std
+    env RUSTFLAGS="-Z always_encode_mir" env RUSTC_WRAPPER=mirai env MIRAI_FLAGS="--diag=library" cargo +nightly-2021-11-17 build --no-default-features --features nightly --features std
 
 clean-mirai: clean
-    env RUSTFLAGS="-Z always_encode_mir" cargo +nightly-2021-09-17 build --no-default-features --features nightly --features std
+    env RUSTFLAGS="-Z always_encode_mir" cargo +nightly-2021-11-17 build --no-default-features --features nightly --features std
     touch src/lib.rs
-    env RUSTFLAGS="-Z always_encode_mir" env RUSTC_WRAPPER=mirai env MIRAI_FLAGS="--diag=library" cargo +nightly-2021-09-17 build --no-default-features --features nightly --features std
+    env RUSTFLAGS="-Z always_encode_mir" env RUSTC_WRAPPER=mirai env MIRAI_FLAGS="--diag=library" cargo +nightly-2021-11-17 build --no-default-features --features nightly --features std
 

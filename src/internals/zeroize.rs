@@ -153,6 +153,24 @@ pub unsafe fn c_asm_ermsb_zeroize(ptr: *mut u8, len: usize) {
 mod tests {
     use super::*;
 
+    fn test_b239_lowalign_zeroizer<Z: FnOnce(*mut u8, usize)>(zeroize: Z) {
+        // ensure we get 8 byte aligned memory
+        let mut array: [u64; 30] = [0x_AFAFAFAF_AFAFAFAF; 30];
+
+        // zeroize everything but the first byte, so the pointer to the memory will have
+        // an alignment of 1 byte
+
+        let array_ptr: *mut u64 = (&mut array[..]).as_mut_ptr();
+        // 1 byte aligned; SAFETY: resulting `ptr` still pointing in array
+        let ptr: *mut u8 = unsafe { array_ptr.cast::<u8>().add(1) };
+        // this should still be safe
+        zeroize(ptr, 30 * 8 - 1);
+
+        let mut expected: [u64; 30] = [0; 30];
+        expected[0] = u64::from_ne_bytes([0x_AF, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(&array[..], &expected[..]);
+    }
+
     #[cfg(feature = "nightly_core_intrinsics")]
     #[test]
     fn test_volatile_memset() {
@@ -200,20 +218,9 @@ mod tests {
     #[cfg(feature = "nightly_core_intrinsics")]
     #[test]
     fn test_volatile_memset_lowalign() {
-        // ensure we get 8 byte aligned memory
-        let mut array: [u64; 30] = [0x_AFAFAFAF_AFAFAFAF; 30];
-        // zeroize everything but the first byte, so the pointer to the memory will have
-        // an alignment of 1 byte
-        unsafe {
-            let array_ptr: *mut u64 = (&mut array[..]).as_mut_ptr();
-            // 1 byte aligned
-            let ptr: *mut u8 = ((array_ptr as usize) + 1) as *mut u8;
-            // this should still be safe
-            volatile_memset(ptr, 0, 30 * 8 - 1);
-        }
-        let mut expected: [u64; 30] = [0; 30];
-        expected[0] = u64::from_ne_bytes([0x_AF, 0, 0, 0, 0, 0, 0, 0]);
-        assert_eq!(&array[..], &expected[..]);
+        test_b239_lowalign_zeroizer(|ptr: *mut u8, len: usize| unsafe {
+            volatile_memset(ptr, 0, len)
+        })
     }
 
     #[cfg(any(
@@ -229,39 +236,17 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore)] // ffi
     fn test_explicit_bzero_lowalign() {
-        // ensure we get 8 byte aligned memory
-        let mut array: [u64; 30] = [0x_AFAFAFAF_AFAFAFAF; 30];
-        // zeroize everything but the first byte, so the pointer to the memory will have
-        // an alignment of 1 byte
-        unsafe {
-            let array_ptr: *mut u64 = (&mut array[..]).as_mut_ptr();
-            // 1 byte aligned
-            let ptr: *mut u8 = ((array_ptr as usize) + 1) as *mut u8;
-            // this should still be safe
-            libc_explicit_bzero(ptr, 30 * 8 - 1);
-        }
-        let mut expected: [u64; 30] = [0; 30];
-        expected[0] = u64::from_ne_bytes([0x_AF, 0, 0, 0, 0, 0, 0, 0]);
-        assert_eq!(&array[..], &expected[..]);
+        test_b239_lowalign_zeroizer(|ptr: *mut u8, len: usize| unsafe {
+            libc_explicit_bzero(ptr, len)
+        })
     }
 
     #[cfg(all(target_arch = "x86_64", target_feature = "ermsb", feature = "cc"))]
     #[test]
     #[cfg_attr(miri, ignore)] // ffi, asm
     fn test_asm_ermsb_zeroize_lowalign() {
-        // ensure we get 8 byte aligned memory
-        let mut array: [u64; 30] = [0x_AFAFAFAF_AFAFAFAF; 30];
-        // zeroize everything but the first byte, so the pointer to the memory will have
-        // an alignment of 1 byte
-        unsafe {
-            let array_ptr: *mut u64 = (&mut array[..]).as_mut_ptr();
-            // 1 byte aligned
-            let ptr: *mut u8 = ((array_ptr as usize) + 1) as *mut u8;
-            // this should still be safe
-            c_asm_ermsb_zeroize(ptr, 30 * 8 - 1);
-        }
-        let mut expected: [u64; 30] = [0; 30];
-        expected[0] = u64::from_ne_bytes([0x_AF, 0, 0, 0, 0, 0, 0, 0]);
-        assert_eq!(&array[..], &expected[..]);
+        test_b239_lowalign_zeroizer(|ptr: *mut u8, len: usize| unsafe {
+            c_asm_ermsb_zeroize(ptr, len)
+        })
     }
 }
