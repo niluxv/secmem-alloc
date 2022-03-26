@@ -190,9 +190,9 @@ impl MemZeroizer for AsmRepStosZeroizer {
     unsafe fn zeroize_mem(&self, ptr: *mut u8, len: usize) {
         precondition_memory_range!(ptr, len);
         // SAFETY: the caller must uphold the safety contract of
-        // `internals::c_asm_ermsb_zeroize`
+        // `internals::asm_ermsb_zeroize`
         unsafe {
-            internals::c_asm_ermsb_zeroize(ptr, len);
+            internals::asm_ermsb_zeroize(ptr, len);
         }
         fence();
     }

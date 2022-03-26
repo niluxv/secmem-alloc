@@ -128,25 +128,31 @@ pub unsafe fn libc_explicit_bzero(ptr: *mut u8, len: usize) {
 /// Overwrite memory with zeros. This operation will not be elided by the
 /// compiler.
 ///
-/// This uses inline assembly in C build and linked using `build.rs`. The
-/// implementation makes use of the efficient `rep stosb` memory set
-/// functionality on modern x86_64 cpus. This is especially fast for zeroizing
-/// large amounts of data, works on stable, does not require a libc, but uses a
-/// c compiler.
+/// This uses inline assembly in Rust. The implementation makes use of the
+/// efficient `rep stosb` memory set functionality on modern x86_64 cpus. This
+/// is very slow for small amounts of data but very efficient for zeroizing
+/// large amounts of data (depending an CPU architecture though), works on
+/// stable, and does not require a libc.
 ///
 /// # Safety
 /// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
 /// the [`std::ptr`] documentation. In particular this function is not atomic.
 // In addition `ptr` needs to be properly aligned, but because we are talking
 // about bytes (therefore byte alignment), it *always* is.
-#[cfg(all(target_arch = "x86_64", target_feature = "ermsb", feature = "cc"))]
-pub unsafe fn c_asm_ermsb_zeroize(ptr: *mut u8, len: usize) {
+#[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
+pub unsafe fn asm_ermsb_zeroize(ptr: *mut u8, len: usize) {
     precondition_memory_range!(ptr, len);
-    extern "C" {
-        fn zeroize_volatile(ptr: *mut u8, count: usize);
-    }
-    // SAFETY: the caller must uphold the safety contract
-    unsafe { zeroize_volatile(ptr, len) }
+
+    core::arch::asm!(
+        "rep stosb byte ptr es:[rdi], al",
+        // `len` in the rcx register
+        inout("rcx") len => _,
+        // `ptr` int the rdi register
+        inout("rdi") ptr => _,
+        // zero byte to al (first byte of rax) register
+        in("al") 0u8,
+        options(nostack),
+    );
 }
 
 #[cfg(test)]

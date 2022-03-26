@@ -3,7 +3,6 @@ name = "secmem-alloc"
 version = "0.1.2"
 authors = ["niluxv <niluxv.opensource.C-h2ty6xl@yandex.com>"]
 edition = "2021"
-build = "build.rs"
 license = "MIT OR Apache-2.0"
 description = "Custom allocators for secret memory"
 readme = "README.md"
@@ -18,7 +17,7 @@ all-features = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["std", "cc"]
+default = ["std"]
 std = ["thiserror", "winapi/std"]
 nightly_allocator_api = []
 nightly_core_intrinsics = []
@@ -37,9 +36,6 @@ winapi = {version = "0.3.9", features = ["impl-default", "memoryapi", "sysinfoap
 
 [dev-dependencies]
 criterion = "0.3"
-
-[build-dependencies]
-cc = {version = "^1.0", optional = true}
 
 [[bench]]
 name = "bench_zeroizers"

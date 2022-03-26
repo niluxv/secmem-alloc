@@ -49,7 +49,7 @@ fn test_b127_libc_zeroizer() {
     test_b127_zeroizer(LibcZeroizer);
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "ermsb", feature = "cc"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
 #[test]
 #[cfg_attr(miri, ignore)] // ffi, asm
 fn test_b127_asm_rep_stos_zeroizer() {
@@ -88,7 +88,7 @@ fn test_b239_lowalign_libc_zeroizer() {
     test_b239_lowalign_zeroizer(LibcZeroizer);
 }
 
-#[cfg(all(target_arch = "x86_64", target_feature = "ermsb", feature = "cc"))]
+#[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
 #[test]
 #[cfg_attr(miri, ignore)] // ffi, asm
 fn test_b239_lowalign_asm_rep_stos_zeroizer() {

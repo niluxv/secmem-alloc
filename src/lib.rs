@@ -75,10 +75,6 @@
 //! - `std` (default): Enable functionality that requires `std`. Currently only
 //!   required for `Error` implements and required for tests. This feature is
 //!   enabled by default.
-//! - `cc` (default): Enable functionality which requires a C compiler. This is
-//!   currently only used to implement a secure memory zeroizer
-//!   `AsmRepStosZeroizer` written in assembly. This feature is enabled by
-//!   default.
 //! - `nightly_allocator_api` (requires nightly): Use the nightly allocator api
 //!   from the standard library (actually the `core` crate), gated behind the
 //!   nightly-only feature `allocator_api`. When disabled, a copy of the
