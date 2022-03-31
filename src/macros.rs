@@ -37,7 +37,14 @@ macro_rules! precondition_memory_range {
     };
 }
 
+macro_rules! debug_precondition_logaligned {
+    ($logalign:expr, $ptr:expr) => {
+        mirai_annotations::debug_checked_precondition!(2_usize.checked_pow($logalign.into()).is_some(), "alignment must fit a usize");
+        mirai_annotations::debug_checked_precondition_eq!(($ptr as usize) % 2_usize.pow($logalign.into()), 0, "pointer must be aligned");
+    };
+}
+
 pub(crate) use {
     debug_handleallocerror_precondition, debug_handleallocerror_precondition_valid_layout,
-    precondition_memory_range,
+    precondition_memory_range, debug_precondition_logaligned,
 };

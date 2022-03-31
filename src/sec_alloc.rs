@@ -467,7 +467,7 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
         // of two
         unsafe {
             self.zeroizer
-                .zeroize_mem_minaligned(ptr.as_ptr(), rounded_req_size, 8);
+                .zeroize_mem_aligned::<3>(ptr.as_ptr(), rounded_req_size);
         }
         // `self.bytes - rounded_req_size` doesn't overflow since the memory has
         // previously been allocated
@@ -560,7 +560,7 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
             // SAFETY: `new_alloc_end` is at least 8 byte aligned
             unsafe {
                 self.zeroizer
-                    .zeroize_mem_minaligned(new_alloc_end, size_decrease, 8);
+                    .zeroize_mem_aligned::<3>(new_alloc_end, size_decrease);
             }
             // decrement the number of allocated bytes by the allocation size reduction
             self.bytes.set(self.bytes.get() - size_decrease);

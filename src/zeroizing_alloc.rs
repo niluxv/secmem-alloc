@@ -105,7 +105,7 @@ where
         // byte aligned and this is a power of two
         unsafe {
             self.zeroizer
-                .zeroize_mem_minaligned(ptr, layout.size(), layout.align());
+                .zeroize_mem(ptr, layout.size());
         }
         // SAFETY: caller must uphold the safety contract of `GlobalAlloc::dealloc`.
         unsafe { self.backend_alloc.dealloc(ptr, layout) }
@@ -165,7 +165,7 @@ where
         // of two
         unsafe {
             self.zeroizer
-                .zeroize_mem_minaligned(ptr.as_ptr(), layout.size(), layout.align());
+                .zeroize_mem(ptr.as_ptr(), layout.size());
         }
         // SAFETY: caller must uphold the safety contract of `Allocator::deallocate`
         unsafe { self.backend_alloc.deallocate(ptr, layout) }
