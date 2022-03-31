@@ -21,7 +21,9 @@ default = ["std"]
 std = ["thiserror", "winapi/std"]
 nightly_allocator_api = []
 nightly_core_intrinsics = []
-nightly = ["nightly_allocator_api", "nightly_core_intrinsics"]
+# even though stabilised, still necessary for avx512
+nightly_stdsimd = []
+nightly = ["nightly_allocator_api", "nightly_core_intrinsics", "nightly_stdsimd"]
 # required features to run tests; additional features enable more tests
 dev = ["std", "nightly_allocator_api"]
 
