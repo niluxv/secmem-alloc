@@ -11,8 +11,7 @@
 //! crate.
 
 use crate::internals::zeroize as internals;
-use crate::macros::{precondition_memory_range, debug_precondition_logaligned};
-use mirai_annotations::debug_checked_precondition_eq;
+use crate::macros::{debug_precondition_logaligned, precondition_memory_range};
 
 /// Strategy for securely erasing memory.
 ///
@@ -44,9 +43,7 @@ pub trait MemZeroizer {
     /// see the [`std::ptr`] documentation. In particular this function is
     /// not atomic.
     unsafe fn zeroize_mem(&self, ptr: *mut u8, len: usize) {
-        unsafe {
-            self.zeroize_mem_aligned::<0>(ptr, len)
-        }
+        unsafe { self.zeroize_mem_aligned::<0>(ptr, len) }
     }
 }
 
@@ -208,7 +205,7 @@ impl MemZeroizer for VolatileWriteZeroizer {
         // SAFETY: the caller must uphold the safety contract of
         // `volatile_write_zeroize_mem`
         unsafe {
-            volatile_write_zeroize_mem(ptr, len);
+            internals::volatile_write_zeroize(ptr, len);
         }
         fence();
     }
@@ -243,7 +240,7 @@ impl MemZeroizer for VolatileWrite8Zeroizer {
             // SAFETY: the other safety requirements of `volatile_write8_zeroize_mem` are
             // also required by this function
             unsafe {
-                volatile_write8_zeroize_mem(ptr, len);
+                internals::volatile_write8_zeroize(ptr, len);
             }
         } else {
             if (ptr as usize) % 8 == 0 {
@@ -251,92 +248,16 @@ impl MemZeroizer for VolatileWrite8Zeroizer {
                 // SAFETY: the other safety requirements of `volatile_write8_zeroize_mem` are
                 // also required by this function
                 unsafe {
-                    volatile_write8_zeroize_mem(ptr, len);
+                    internals::volatile_write8_zeroize(ptr, len);
                 }
             } else {
                 // SAFETY: the caller must uphold the contract of `volatile_write_zeroize_mem`
                 unsafe {
-                    volatile_write_zeroize_mem(ptr, len);
+                    internals::volatile_write_zeroize(ptr, len);
                 }
             }
         }
         fence();
-    }
-}
-
-/// Zeroize the memory pointed to by `ptr` and of size `len` bytes, by
-/// overwriting it byte for byte using volatile writes.
-///
-/// This is guarantied to be not elided by the compiler.
-///
-/// # Safety
-/// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
-/// the [`std::ptr`] documentation. In particular this function is not atomic.
-unsafe fn volatile_write_zeroize_mem(mut ptr: *mut u8, len: usize) {
-    precondition_memory_range!(ptr, len);
-    for _i in 0..len {
-        // SAFETY: `ptr` originally pointed into an allocation of `len` bytes so now,
-        // after `_i` steps `len - _i > 0` bytes are left, so `ptr` is valid for
-        // a byte write
-        unsafe {
-            core::ptr::write_volatile(ptr, 0u8);
-        }
-        // SAFETY: after increment, `ptr` points into the same allocation if `_i == len`
-        // or one byte past it, so `add` is sound
-        ptr = unsafe { ptr.add(1) };
-    }
-}
-
-/// Zeroize the memory pointed to by `ptr` and of size `len` bytes, by
-/// overwriting it 8 bytes at a time using volatile writes.
-///
-/// This is guarantied to be not elided by the compiler.
-///
-/// # Safety
-/// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
-/// the [`std::ptr`] documentation. In particular this function is not atomic.
-///
-/// Furthermore, `ptr` *must* be at least 8 byte aligned.
-unsafe fn volatile_write8_zeroize_mem(mut ptr: *mut u8, len: usize) {
-    precondition_memory_range!(ptr, len);
-    debug_checked_precondition_eq!((ptr as usize) % 8, 0);
-    let nblocks = (len - len % 8) / 8;
-    for _i in 0..nblocks {
-        // SAFETY: `ptr` originally pointed into an allocation of `len` bytes so now,
-        // after `_i` steps `len - 8*_i >= 8` bytes are left, so `ptr` is valid
-        // for an 8 byte write SAFETY: `ptr` was originally 8 byte aligned by
-        // caller contract and we only added a multiple of 8 so it is still 8
-        // byte aligned
-        unsafe {
-            core::ptr::write_volatile(ptr.cast::<u64>(), 0u64);
-        }
-        // SAFETY: after increment, `ptr` points into the same allocation or (if `8*_i
-        // == len`) at most one byte past it, so `add` is sound; `ptr` stays 8
-        // byte aligned
-        ptr = unsafe { ptr.add(8) };
-    }
-    // if `len` is not a multiple of 8 then the remainder (at most 7 bytes) needs to
-    // be zeroized; if the remainder is at least 4 bytes we zero these with a single
-    // write
-    if len % 8 >= 4 {
-        // SAFETY: `ptr` has been incremented by a multiple of 8 <= `len` so `ptr`
-        // points to an allocation of `len % 8 >= 4` bytes, so `ptr` is valid
-        // for a 4 byte write SAFETY: `ptr` is still 8 byte aligned so also 4
-        // byte aligned
-        unsafe {
-            core::ptr::write_volatile(ptr.cast::<u32>(), 0u32);
-        }
-        ptr = unsafe { ptr.add(4) };
-    }
-    // the final remainder (at most 3 bytes) is zeroed byte-for-byte
-    // SAFETY: `ptr` has been incremented by a multiple of 4 <= `len` so `ptr`
-    // points to an allocation of `len % 4` bytes, so `ptr` can be written to
-    // and incremented `len % 4` times
-    for _i in 0..(len % 4) {
-        unsafe {
-            core::ptr::write_volatile(ptr, 0u8);
-        }
-        ptr = unsafe { ptr.add(1) };
     }
 }
 
