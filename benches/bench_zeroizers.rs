@@ -1,6 +1,12 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+#[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
+use secmem_alloc::zeroize::AsmRepStosZeroizer;
+#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+use secmem_alloc::zeroize::X86_64AvxZeroizer;
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+use secmem_alloc::zeroize::X86_64Sse2Zeroizer;
 use secmem_alloc::zeroize::{
-    AsmRepStosZeroizer, LibcZeroizer, MemZeroizer, VolatileMemsetZeroizer, VolatileWrite8Zeroizer,
+    LibcZeroizer, MemZeroizer, VolatileMemsetZeroizer, VolatileWrite8Zeroizer,
     VolatileWriteZeroizer,
 };
 
@@ -25,64 +31,60 @@ fn zeroize_b1024<Z: MemZeroizer>(z: Z, array: &mut [u8; 1024]) {
     }
 }
 
+macro_rules! bench_zeroizers {
+    ($cgroup:ident, $bench_function:ident, $array:ident) => {
+        $cgroup.bench_function("VolatileMemsetZeroizer", |b| {
+            b.iter(|| $bench_function(VolatileMemsetZeroizer, &mut $array.0))
+        });
+        $cgroup.bench_function("LibcZeroizer", |b| {
+            b.iter(|| $bench_function(LibcZeroizer, &mut $array.0))
+        });
+        $cgroup.bench_function("VolatileWriteZeroizer", |b| {
+            b.iter(|| $bench_function(VolatileWriteZeroizer, &mut $array.0))
+        });
+        $cgroup.bench_function("VolatileWrite8Zeroizer", |b| {
+            b.iter(|| $bench_function(VolatileWrite8Zeroizer, &mut $array.0))
+        });
+        #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+        {
+            $cgroup.bench_function("X86_64Sse2Zeroizer", |b| {
+                b.iter(|| $bench_function(X86_64Sse2Zeroizer, &mut $array.0))
+            });
+        }
+        #[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+        {
+            $cgroup.bench_function("X86_64AvxZeroizer", |b| {
+                b.iter(|| $bench_function(X86_64AvxZeroizer, &mut $array.0))
+            });
+        }
+        #[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
+        {
+            $cgroup.bench_function("AsmRepStosZeroizer", |b| {
+                b.iter(|| $bench_function(AsmRepStosZeroizer, &mut $array.0))
+            });
+        }
+    };
+}
+
+#[repr(align(32))]
+struct Align32<const N: usize>([u8; N]);
+
 fn zeroize_byte127(c: &mut Criterion) {
-    let mut array: [u8; 127] = [0xAF; 127];
+    let mut array: Align32<127> = Align32([0xAF; 127]);
     let mut cgroup = c.benchmark_group("MemZeroizer::zeroize_mem 127 byte zeroize");
-    cgroup.bench_function("VolatileMemsetZeroizer", |b| {
-        b.iter(|| zeroize_b127(VolatileMemsetZeroizer, &mut array))
-    });
-    cgroup.bench_function("LibcZeroizer", |b| {
-        b.iter(|| zeroize_b127(LibcZeroizer, &mut array))
-    });
-    cgroup.bench_function("AsmRepStosZeroizer", |b| {
-        b.iter(|| zeroize_b127(AsmRepStosZeroizer, &mut array))
-    });
-    cgroup.bench_function("VolatileWriteZeroizer", |b| {
-        b.iter(|| zeroize_b127(VolatileWriteZeroizer, &mut array))
-    });
-    cgroup.bench_function("VolatileWrite8Zeroizer", |b| {
-        b.iter(|| zeroize_b127(VolatileWrite8Zeroizer, &mut array))
-    });
+    bench_zeroizers!(cgroup, zeroize_b127, array);
 }
 
 fn zeroize_byte128(c: &mut Criterion) {
-    let mut array: [u8; 128] = [0xAF; 128];
+    let mut array: Align32<128> = Align32([0xAF; 128]);
     let mut cgroup = c.benchmark_group("MemZeroizer::zeroize_mem 128 byte zeroize");
-    cgroup.bench_function("VolatileMemsetZeroizer", |b| {
-        b.iter(|| zeroize_b128(VolatileMemsetZeroizer, &mut array))
-    });
-    cgroup.bench_function("LibcZeroizer", |b| {
-        b.iter(|| zeroize_b128(LibcZeroizer, &mut array))
-    });
-    cgroup.bench_function("AsmRepStosZeroizer", |b| {
-        b.iter(|| zeroize_b128(AsmRepStosZeroizer, &mut array))
-    });
-    cgroup.bench_function("VolatileWriteZeroizer", |b| {
-        b.iter(|| zeroize_b128(VolatileWriteZeroizer, &mut array))
-    });
-    cgroup.bench_function("VolatileWrite8Zeroizer", |b| {
-        b.iter(|| zeroize_b128(VolatileWrite8Zeroizer, &mut array))
-    });
+    bench_zeroizers!(cgroup, zeroize_b128, array);
 }
 
 fn zeroize_byte1024(c: &mut Criterion) {
-    let mut array: [u8; 1024] = [0xAF; 1024];
+    let mut array: Align32<1024> = Align32([0xAF; 1024]);
     let mut cgroup = c.benchmark_group("MemZeroizer::zeroize_mem 1024 byte zeroize");
-    cgroup.bench_function("VolatileMemsetZeroizer", |b| {
-        b.iter(|| zeroize_b1024(VolatileMemsetZeroizer, &mut array))
-    });
-    cgroup.bench_function("LibcZeroizer", |b| {
-        b.iter(|| zeroize_b1024(LibcZeroizer, &mut array))
-    });
-    cgroup.bench_function("AsmRepStosZeroizer", |b| {
-        b.iter(|| zeroize_b1024(AsmRepStosZeroizer, &mut array))
-    });
-    cgroup.bench_function("VolatileWriteZeroizer", |b| {
-        b.iter(|| zeroize_b1024(VolatileWriteZeroizer, &mut array))
-    });
-    cgroup.bench_function("VolatileWrite8Zeroizer", |b| {
-        b.iter(|| zeroize_b1024(VolatileWrite8Zeroizer, &mut array))
-    });
+    bench_zeroizers!(cgroup, zeroize_b1024, array);
 }
 
 criterion_group!(

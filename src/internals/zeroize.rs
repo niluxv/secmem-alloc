@@ -167,12 +167,30 @@ mod tests {
         })
     }
 
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+    #[test]
+    #[cfg_attr(miri, ignore)] // asm
+    fn test_x86_64_simd16_unroll2_zeroize_align16_block16() {
+        test_b257_align64_block_zeroizer(|ptr, len| unsafe {
+            x86_64_simd16_unroll2_zeroize_align16_block16(ptr, len)
+        })
+    }
+
     #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
     #[test]
     #[cfg_attr(miri, ignore)] // asm
     fn test_x86_64_simd32_zeroize_align32_block32() {
         test_b257_align64_block_zeroizer(|ptr, len| unsafe {
             x86_64_simd32_zeroize_align32_block32(ptr, len)
+        })
+    }
+
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    #[test]
+    #[cfg_attr(miri, ignore)] // asm
+    fn test_x86_64_simd32_unroll2_zeroize_align32_block32() {
+        test_b257_align64_block_zeroizer(|ptr, len| unsafe {
+            x86_64_simd32_unroll2_zeroize_align32_block32(ptr, len)
         })
     }
 

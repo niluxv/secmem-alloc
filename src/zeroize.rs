@@ -223,8 +223,8 @@ impl MemZeroizer for VolatileWriteZeroizer {
 /// The use of this fence is therefore only a precaution.
 ///
 /// This zeroization method can benefit (in terms of performance) from using the
-/// [`MemZeroizer::zeroize_mem_minaligned`] function instead of
-/// [`MemZeroizer::zeroize_mem`] function if a minimum alignment might be known
+/// [`MemZeroizer::zeroize_mem_aligned`] function instead of
+/// [`MemZeroizer::zeroize_mem`] function if a minimum alignment is known
 /// at compile time.
 #[derive(Debug, Copy, Clone, Default)]
 pub struct VolatileWrite8Zeroizer;
@@ -235,7 +235,7 @@ impl MemZeroizer for VolatileWrite8Zeroizer {
         debug_precondition_logaligned!(A, ptr);
         // if we have 8 = 2^3 byte alignment then write 8 bytes at a time,
         // otherwise byte-for-byte
-        if A >= 3 {
+        if (A >= 3) | ((ptr as usize) % 8 == 0) {
             // SAFETY: by the above check, `ptr` is at least 8 byte aligned
             // SAFETY: the other safety requirements of `volatile_write8_zeroize_mem` are
             // also required by this function
@@ -243,18 +243,105 @@ impl MemZeroizer for VolatileWrite8Zeroizer {
                 internals::volatile_write8_zeroize(ptr, len);
             }
         } else {
-            if (ptr as usize) % 8 == 0 {
-                // SAFETY: by the above check, `ptr` is at least 8 byte aligned
-                // SAFETY: the other safety requirements of `volatile_write8_zeroize_mem` are
-                // also required by this function
-                unsafe {
-                    internals::volatile_write8_zeroize(ptr, len);
-                }
-            } else {
-                // SAFETY: the caller must uphold the contract of `volatile_write_zeroize_mem`
-                unsafe {
-                    internals::volatile_write_zeroize(ptr, len);
-                }
+            // SAFETY: the caller must uphold the contract of `volatile_write_zeroize_mem`
+            unsafe {
+                internals::volatile_write_zeroize(ptr, len);
+            }
+        }
+        fence();
+    }
+}
+
+/// This zeroizer uses inline asm with avx2 instructions if the pointer is 32
+/// byte aligned, and otherwise uses `VolatileWrite8Zeroizer`. This zeroization
+/// technique is available for x86_64 platforms with avx2 cpu support on stable,
+/// and reasonably fast for 32 byte aligned pointers.
+///
+/// In addition to the volatile write we place a compiler fence right next to
+/// the volatile write. This should not be necessary for secure zeroization
+/// since the volatile semantics guarenties our writes are not elided, and they
+/// can not be delayed since we are deallocating the memory after zeroization.
+/// The use of this fence is therefore only a precaution.
+///
+/// This zeroization method can benefit (in terms of performance) from using the
+/// [`MemZeroizer::zeroize_mem_aligned`] function instead of
+/// [`MemZeroizer::zeroize_mem`] function if a minimum alignment is known
+/// at compile time.
+#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+#[derive(Debug, Copy, Clone, Default)]
+pub struct X86_64AvxZeroizer;
+
+#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+impl MemZeroizer for X86_64AvxZeroizer {
+    unsafe fn zeroize_mem_aligned<const A: u8>(&self, mut ptr: *mut u8, len: usize) {
+        precondition_memory_range!(ptr, len);
+        debug_precondition_logaligned!(A, ptr);
+        // if we have 32 = 2^5 byte alignment then write 32 bytes at a time,
+        // with 8 = 2^3 byte align do 8 bytes at a time, otherwise 1 byte at a time
+        if (A >= 5) | ((ptr as usize) % 32 == 0) {
+            // SAFETY: `ptr` is 32 byte aligned
+            unsafe {
+                ptr = internals::x86_64_simd32_unroll2_zeroize_align32_block32(ptr, len);
+                // zeroize tail
+                internals::volatile_write8_zeroize(ptr, len % 32);
+            }
+        } else if (A >= 3) | ((ptr as usize) % 8 == 0) {
+            // SAFETY: `ptr` is 8 byte aligned
+            unsafe {
+                internals::volatile_write8_zeroize(ptr, len);
+            }
+        } else {
+            // SAFETY: no alignment requirement
+            unsafe {
+                internals::volatile_write_zeroize(ptr, len);
+            }
+        }
+        fence();
+    }
+}
+
+/// This zeroizer uses inline asm with sse2 instructions if the pointer is 16
+/// byte aligned, and otherwise uses `VolatileWrite8Zeroizer`. This zeroization
+/// technique is available for x86_64 platforms with sse2 cpu support on stable,
+/// and reasonably fast for 16 byte aligned pointers.
+///
+/// In addition to the volatile write we place a compiler fence right next to
+/// the volatile write. This should not be necessary for secure zeroization
+/// since the volatile semantics guarenties our writes are not elided, and they
+/// can not be delayed since we are deallocating the memory after zeroization.
+/// The use of this fence is therefore only a precaution.
+///
+/// This zeroization method can benefit (in terms of performance) from using the
+/// [`MemZeroizer::zeroize_mem_aligned`] function instead of
+/// [`MemZeroizer::zeroize_mem`] function if a minimum alignment is known
+/// at compile time.
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+#[derive(Debug, Copy, Clone, Default)]
+pub struct X86_64Sse2Zeroizer;
+
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+impl MemZeroizer for X86_64Sse2Zeroizer {
+    unsafe fn zeroize_mem_aligned<const A: u8>(&self, mut ptr: *mut u8, len: usize) {
+        precondition_memory_range!(ptr, len);
+        debug_precondition_logaligned!(A, ptr);
+        // if we have 16 = 2^4 byte alignment then write 16 bytes at a time,
+        // with 8 = 2^3 byte align do 8 bytes at a time, otherwise 1 byte at a time
+        if (A >= 4) | ((ptr as usize) % 16 == 0) {
+            // SAFETY: `ptr` is 16 byte aligned
+            unsafe {
+                ptr = internals::x86_64_simd16_unroll2_zeroize_align16_block16(ptr, len);
+                // zeroize tail
+                internals::volatile_write8_zeroize(ptr, len % 16);
+            }
+        } else if (A >= 3) | ((ptr as usize) % 8 == 0) {
+            // SAFETY: `ptr` is 8 byte aligned
+            unsafe {
+                internals::volatile_write8_zeroize(ptr, len);
+            }
+        } else {
+            // SAFETY: no alignment requirement
+            unsafe {
+                internals::volatile_write_zeroize(ptr, len);
             }
         }
         fence();

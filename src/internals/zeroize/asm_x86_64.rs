@@ -88,6 +88,67 @@ pub unsafe fn x86_64_simd16_zeroize_align16_block16(mut ptr: *mut u8, len: usize
 }
 
 /// Zeroize the memory pointed to by `ptr` for `len` rounded down to a multiple
+/// of 16 bytes.
+///
+/// This function rounds down `len` to a multiple of 16 and then zeroizes the
+/// memory pointed to by `ptr` for that length. This operation is guarantied to
+/// be not elided by the compiler. If `len` is a multiple of 16 then this
+/// zeroizes the entire specified block of memory. Returns a pointer to the byte
+/// after the last zeroed byte, with the provenance of `ptr`.
+///
+/// This uses sse2 instructions in inline asm to zeroize the memory with blocks
+/// of 16 bytes at a time.
+///
+/// # Safety
+/// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
+/// the [`std::ptr`] documentation. In particular this function is not atomic.
+///
+/// Furthermore, `ptr` *must* be at least 16 byte aligned.
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+pub unsafe fn x86_64_simd16_unroll2_zeroize_align16_block16(
+    mut ptr: *mut u8,
+    len: usize,
+) -> *mut u8 {
+    use core::arch::x86_64 as arch;
+
+    let nblocks = (len - len % 16) / 16;
+
+    // SAFETY: `ptr` is valid for a `len >= nblocks*16` byte write, so we can write
+    // `nblocks` times 16 bytes and increment `ptr` by 16 bytes; `ptr` stays 16 byte
+    // aligned
+    for _i in 0..nblocks / 2 {
+        unsafe {
+            core::arch::asm!(
+                "
+                /* write 16 zero bytes to ptr */
+                vmovdqa xmmword ptr [{0}], {1}
+                vmovdqa xmmword ptr [{0} + 16], {1}
+                ",
+                in(reg) ptr,
+                in(xmm_reg) arch::_mm_setzero_si128(),
+                options(nostack),
+            );
+            ptr = ptr.add(32);
+        }
+    }
+    if nblocks % 2 == 1 {
+        unsafe {
+            core::arch::asm!(
+                "
+                /* write 16 zero bytes to ptr */
+                vmovdqa xmmword ptr [{0}], {1}
+                ",
+                in(reg) ptr,
+                in(xmm_reg) arch::_mm_setzero_si128(),
+                options(nostack),
+            );
+            ptr = ptr.add(16);
+        }
+    }
+    ptr
+}
+
+/// Zeroize the memory pointed to by `ptr` for `len` rounded down to a multiple
 /// of 32 bytes.
 ///
 /// This function rounds down `len` to a multiple of 32 and then zeroizes the
@@ -133,6 +194,70 @@ pub unsafe fn x86_64_simd32_zeroize_align32_block32(mut ptr: *mut u8, len: usize
             // NOTE: increment `ptr` outside of the asm to maintain provenance
             // SAFETY: this stays within the memory where `ptr` is valid for writes and
             // maintains 32 byte alignment
+            ptr = ptr.add(32);
+        }
+    }
+    ptr
+}
+
+/// Zeroize the memory pointed to by `ptr` for `len` rounded down to a multiple
+/// of 32 bytes.
+///
+/// This function rounds down `len` to a multiple of 32 and then zeroizes the
+/// memory pointed to by `ptr` for that length. This operation is guarantied to
+/// be not elided by the compiler. If `len` is a multiple of 32 then this
+/// zeroizes the entire specified block of memory. Returns a pointer to the byte
+/// after the last zeroed byte, with the provenance of `ptr`.
+///
+/// This uses avx2 instructions in inline asm to zeroize the memory with blocks
+/// of 32 bytes at a time.
+///
+/// # Safety
+/// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
+/// the [`std::ptr`] documentation. In particular this function is not atomic.
+///
+/// Furthermore, `ptr` *must* be at least 32 byte aligned.
+#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+pub unsafe fn x86_64_simd32_unroll2_zeroize_align32_block32(
+    mut ptr: *mut u8,
+    len: usize,
+) -> *mut u8 {
+    use core::arch::x86_64 as arch;
+
+    precondition_memory_range!(ptr, len);
+    mirai_annotations::debug_checked_precondition_eq!((ptr as usize) % 32, 0);
+
+    let nblocks = (len - len % 32) / 32;
+
+    // SAFETY: `ptr` is valid for a `len >= nblocks*32` byte write, so we can write
+    // `nblocks` times 32 bytes and increment `ptr` by 32 bytes; `ptr` stays 32 byte
+    // aligned
+    for _i in 0..(nblocks / 2) {
+        unsafe {
+            core::arch::asm!(
+                "
+                /* write 64 zero bytes to ptr */
+                vmovdqa ymmword ptr [{0}], {1}
+                vmovdqa ymmword ptr [{0} + 32], {1}
+                ",
+                in(reg) ptr,
+                in(ymm_reg) arch::_mm256_setzero_si256(),
+                options(nostack),
+            );
+            ptr = ptr.add(64);
+        }
+    }
+    if nblocks % 2 == 1 {
+        unsafe {
+            core::arch::asm!(
+                "
+                /* write 32 zero bytes to ptr */
+                vmovdqa ymmword ptr [{0}], {1}
+                ",
+                in(reg) ptr,
+                in(ymm_reg) arch::_mm256_setzero_si256(),
+                options(nostack),
+            );
             ptr = ptr.add(32);
         }
     }

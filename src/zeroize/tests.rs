@@ -66,6 +66,18 @@ fn test_b127_volatile_write8_zeroizer() {
     test_b127_zeroizer(VolatileWrite8Zeroizer);
 }
 
+#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+#[test]
+fn test_b127_x86_64_avx_zeroizer() {
+    test_b127_zeroizer(X86_64AvxZeroizer);
+}
+
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+#[test]
+fn test_b127_x86_64_sse2_zeroizer() {
+    test_b127_zeroizer(X86_64Sse2Zeroizer);
+}
+
 #[cfg(feature = "nightly_core_intrinsics")]
 #[test]
 fn test_b239_lowalign_volatile_memset_zeroizer() {
@@ -103,4 +115,16 @@ fn test_b239_lowalign_volatile_write_zeroizer() {
 #[test]
 fn test_b239_lowalign_volatile_write8_zeroizer() {
     test_b239_lowalign_zeroizer(VolatileWrite8Zeroizer);
+}
+
+#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+#[test]
+fn test_b239_lowalign_x86_64_avx_zeroizer() {
+    test_b239_lowalign_zeroizer(X86_64AvxZeroizer);
+}
+
+#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+#[test]
+fn test_b239_lowalign_x86_64_sse2_zeroizer() {
+    test_b239_lowalign_zeroizer(X86_64Sse2Zeroizer);
 }
