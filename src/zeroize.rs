@@ -11,7 +11,9 @@
 //! crate.
 
 use crate::internals::zeroize as internals;
-use crate::macros::{debug_precondition_logaligned, precondition_memory_range};
+use crate::macros::{
+    debug_precondition_logaligned, debug_precondition_logmultiple, precondition_memory_range,
+};
 
 /// Strategy for securely erasing memory.
 ///
@@ -28,13 +30,23 @@ pub trait MemZeroizer {
     /// see the [`std::ptr`] documentation. In particular this function is
     /// not atomic.
     ///
-    /// Furthermore, `ptr` *must* be at least `2^ALIGN` byte aligned, and
-    /// `2^ALIGN` must fit a `usize`.
-    /// must be a power of 2 (and therefore non-zero).
-    unsafe fn zeroize_mem_aligned<const LOG_ALIGN: u8>(&self, ptr: *mut u8, len: usize);
+    /// Furthermore, `ptr` *must* be at least `2^LOG_ALIGN` byte aligned, and
+    /// `2^LOG_ALIGN` must fit a `usize`.
+    ///
+    /// Finally `len` must be a multiple of `2^LOG_MULTIPLE`, and `2^LOG_ALIGN`
+    /// must fit a `usize`. (If `len` is not a multiple of `2^LOG_MULTIPLE`
+    /// then this won't result in UB but the memory pointed to by `ptr` might
+    /// only be zeroized for `len` rounded down to a multiple `2^LOG_MULTIPLE`
+    /// bytes, or the full `len` bytes, or anything in between, or the function
+    /// might panic.)
+    unsafe fn zeroize_mem_blocks<const LOG_ALIGN: u8, const LOG_MULTIPLE: u8>(
+        &self,
+        ptr: *mut u8,
+        len: usize,
+    );
 
     /// Zeroize the memory pointed to by `ptr` and of size `len` bytes.
-    /// Shorthand for `Self::zeroize_mem_aligned::<0>`.
+    /// Shorthand for `Self::zeroize_mem_blocks::<0, 0>`.
     ///
     /// This is guarantied to be not elided by the compiler.
     ///
@@ -43,7 +55,7 @@ pub trait MemZeroizer {
     /// see the [`std::ptr`] documentation. In particular this function is
     /// not atomic.
     unsafe fn zeroize_mem(&self, ptr: *mut u8, len: usize) {
-        unsafe { self.zeroize_mem_aligned::<0>(ptr, len) }
+        unsafe { self.zeroize_mem_blocks::<0, 0>(ptr, len) }
     }
 }
 
@@ -117,7 +129,7 @@ pub struct VolatileMemsetZeroizer;
 
 #[cfg(feature = "nightly_core_intrinsics")]
 impl MemZeroizer for VolatileMemsetZeroizer {
-    unsafe fn zeroize_mem_aligned<const A: u8>(&self, ptr: *mut u8, len: usize) {
+    unsafe fn zeroize_mem_blocks<const A: u8, const B: u8>(&self, ptr: *mut u8, len: usize) {
         precondition_memory_range!(ptr, len);
         debug_precondition_logaligned!(A, ptr);
         // SAFETY: the caller must uphold the safety contract of
@@ -161,9 +173,10 @@ pub struct LibcZeroizer;
     target_env = "musl"
 ))]
 impl MemZeroizer for LibcZeroizer {
-    unsafe fn zeroize_mem_aligned<const A: u8>(&self, ptr: *mut u8, len: usize) {
+    unsafe fn zeroize_mem_blocks<const A: u8, const B: u8>(&self, ptr: *mut u8, len: usize) {
         precondition_memory_range!(ptr, len);
         debug_precondition_logaligned!(A, ptr);
+        debug_precondition_logmultiple!(B, len);
         // SAFETY: the caller must uphold the safety contract of
         // `internals::libc_explicit_bzero`
         unsafe {
@@ -188,9 +201,10 @@ pub struct AsmRepStosZeroizer;
 
 #[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
 impl MemZeroizer for AsmRepStosZeroizer {
-    unsafe fn zeroize_mem_aligned<const A: u8>(&self, ptr: *mut u8, len: usize) {
+    unsafe fn zeroize_mem_blocks<const A: u8, const B: u8>(&self, ptr: *mut u8, len: usize) {
         precondition_memory_range!(ptr, len);
         debug_precondition_logaligned!(A, ptr);
+        debug_precondition_logmultiple!(B, len);
         // SAFETY: the caller must uphold the safety contract of
         // `internals::asm_ermsb_zeroize`
         unsafe {
@@ -213,9 +227,10 @@ impl MemZeroizer for AsmRepStosZeroizer {
 pub struct VolatileWriteZeroizer;
 
 impl MemZeroizer for VolatileWriteZeroizer {
-    unsafe fn zeroize_mem_aligned<const A: u8>(&self, ptr: *mut u8, len: usize) {
+    unsafe fn zeroize_mem_blocks<const A: u8, const B: u8>(&self, ptr: *mut u8, len: usize) {
         precondition_memory_range!(ptr, len);
         debug_precondition_logaligned!(A, ptr);
+        debug_precondition_logmultiple!(B, len);
         // SAFETY: the caller must uphold the safety contract of
         // `volatile_write_zeroize_mem`
         unsafe {
@@ -244,17 +259,18 @@ impl MemZeroizer for VolatileWriteZeroizer {
 pub struct VolatileWrite8Zeroizer;
 
 impl MemZeroizer for VolatileWrite8Zeroizer {
-    unsafe fn zeroize_mem_aligned<const A: u8>(&self, ptr: *mut u8, len: usize) {
+    unsafe fn zeroize_mem_blocks<const A: u8, const B: u8>(&self, mut ptr: *mut u8, len: usize) {
         precondition_memory_range!(ptr, len);
         debug_precondition_logaligned!(A, ptr);
+        debug_precondition_logmultiple!(B, len);
         // if we have 8 = 2^3 byte alignment then write 8 bytes at a time,
         // otherwise byte-for-byte
         if (A >= 3) | ((ptr as usize) % 8 == 0) {
             // SAFETY: by the above check, `ptr` is at least 8 byte aligned
-            // SAFETY: the other safety requirements of `volatile_write8_zeroize_mem` are
-            // also required by this function
-            unsafe {
-                internals::volatile_write8_zeroize(ptr, len);
+            // SAFETY: the other safety requirements uphold by caller
+            ptr = unsafe { internals::zeroize_align8_block8(ptr, len) };
+            if B < 3 {
+                unsafe { internals::zeroize_align4_tail8(ptr, len) };
             }
         } else {
             // SAFETY: the caller must uphold the contract of `volatile_write_zeroize_mem`
@@ -287,22 +303,27 @@ pub struct X86_64AvxZeroizer;
 
 #[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
 impl MemZeroizer for X86_64AvxZeroizer {
-    unsafe fn zeroize_mem_aligned<const A: u8>(&self, mut ptr: *mut u8, len: usize) {
+    unsafe fn zeroize_mem_blocks<const A: u8, const B: u8>(&self, mut ptr: *mut u8, len: usize) {
         precondition_memory_range!(ptr, len);
         debug_precondition_logaligned!(A, ptr);
+        debug_precondition_logmultiple!(B, len);
         // if we have 32 = 2^5 byte alignment then write 32 bytes at a time,
         // with 8 = 2^3 byte align do 8 bytes at a time, otherwise 1 byte at a time
         if (A >= 5) | ((ptr as usize) % 32 == 0) {
             // SAFETY: `ptr` is 32 byte aligned
-            unsafe {
-                ptr = internals::x86_64_simd32_unroll2_zeroize_align32_block32(ptr, len);
-                // zeroize tail
-                internals::volatile_write8_zeroize(ptr, len % 32);
+            ptr = unsafe { internals::x86_64_simd32_unroll2_zeroize_align32_block32(ptr, len) };
+            // zeroize tail
+            if B < 5 {
+                ptr = unsafe { internals::zeroize_align8_block8(ptr, len % 32) };
+            }
+            if B < 3 {
+                unsafe { internals::zeroize_align4_tail8(ptr, len % 8) };
             }
         } else if (A >= 3) | ((ptr as usize) % 8 == 0) {
             // SAFETY: `ptr` is 8 byte aligned
-            unsafe {
-                internals::volatile_write8_zeroize(ptr, len);
+            ptr = unsafe { internals::zeroize_align8_block8(ptr, len % 32) };
+            if B < 3 {
+                unsafe { internals::zeroize_align4_tail8(ptr, len % 8) };
             }
         } else {
             // SAFETY: no alignment requirement
@@ -335,22 +356,28 @@ pub struct X86_64Sse2Zeroizer;
 
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
 impl MemZeroizer for X86_64Sse2Zeroizer {
-    unsafe fn zeroize_mem_aligned<const A: u8>(&self, mut ptr: *mut u8, len: usize) {
+    unsafe fn zeroize_mem_blocks<const A: u8, const B: u8>(&self, mut ptr: *mut u8, len: usize) {
         precondition_memory_range!(ptr, len);
         debug_precondition_logaligned!(A, ptr);
+        debug_precondition_logmultiple!(B, len);
         // if we have 16 = 2^4 byte alignment then write 16 bytes at a time,
         // with 8 = 2^3 byte align do 8 bytes at a time, otherwise 1 byte at a time
         if (A >= 4) | ((ptr as usize) % 16 == 0) {
             // SAFETY: `ptr` is 16 byte aligned
-            unsafe {
-                ptr = internals::x86_64_simd16_unroll2_zeroize_align16_block16(ptr, len);
-                // zeroize tail
-                internals::volatile_write8_zeroize(ptr, len % 16);
+
+            ptr = unsafe { internals::x86_64_simd16_unroll2_zeroize_align16_block16(ptr, len) };
+            // zeroize tail
+            if B < 4 {
+                ptr = unsafe { internals::zeroize_align8_block8(ptr, len % 16) };
+            }
+            if B < 3 {
+                unsafe { internals::zeroize_align4_tail8(ptr, len % 8) };
             }
         } else if (A >= 3) | ((ptr as usize) % 8 == 0) {
             // SAFETY: `ptr` is 8 byte aligned
-            unsafe {
-                internals::volatile_write8_zeroize(ptr, len);
+            ptr = unsafe { internals::zeroize_align8_block8(ptr, len % 16) };
+            if B < 3 {
+                unsafe { internals::zeroize_align4_tail8(ptr, len % 8) };
             }
         } else {
             // SAFETY: no alignment requirement

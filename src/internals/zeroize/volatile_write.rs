@@ -27,28 +27,6 @@ pub unsafe fn volatile_write_zeroize(mut ptr: *mut u8, len: usize) {
     }
 }
 
-/// Zeroize the memory pointed to by `ptr` and of size `len` bytes, by
-/// overwriting it 8 bytes at a time using volatile writes.
-///
-/// This is guarantied to be not elided by the compiler.
-///
-/// # Safety
-/// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
-/// the [`std::ptr`] documentation. In particular this function is not atomic.
-///
-/// Furthermore, `ptr` *must* be at least 8 byte aligned.
-pub unsafe fn volatile_write8_zeroize(mut ptr: *mut u8, len: usize) {
-    precondition_memory_range!(ptr, len);
-    debug_checked_precondition_eq!((ptr as usize) % 8, 0);
-    // first zeroize multiples of 8
-    ptr = unsafe { zeroize_align8_block8(ptr, len) };
-    // if `len` is not a multiple of 8 then the remainder (at most 7 bytes) needs to
-    // be zeroized
-    // SAFETY: `ptr` was incremented by a multiple of 8 by `zeroize_align8_block8`
-    // still 8 byte aligned (so also 4)
-    unsafe { zeroize_align4_tail8(ptr, len) };
-}
-
 /// Zeroize the memory pointed to by `ptr` for `len` rounded down to a multiple
 /// of 8 bytes.
 ///

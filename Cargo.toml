@@ -42,3 +42,9 @@ criterion = "0.3"
 [[bench]]
 name = "bench_zeroizers"
 harness = false
+
+[profile.release]
+codegen-units = 1
+
+[profile.bench]
+codegen-units = 1
