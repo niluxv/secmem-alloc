@@ -75,6 +75,20 @@ cfg_if::cfg_if! {
         /// the selected features and the version of this library.
         pub type DefaultMemZeroizer = LibcZeroizer;
         pub(crate) use LibcZeroizer as DefaultMemZeroizerConstructor;
+    } else if #[cfg(all(target_arch = "x86_64", target_feature = "avx"))] {
+        /// Best (i.e. fastest) [`MemZeroizer`] available for the target.
+        ///
+        /// Which [`MemZeroizer`] this is is an implementation detail, can depend on the target and
+        /// the selected features and the version of this library.
+        pub type DefaultMemZeroizer = X86_64AvxZeroizer;
+        pub(crate) use X86_64AvxZeroizer as DefaultMemZeroizerConstructor;
+    } else if #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))] {
+        /// Best (i.e. fastest) [`MemZeroizer`] available for the target.
+        ///
+        /// Which [`MemZeroizer`] this is is an implementation detail, can depend on the target and
+        /// the selected features and the version of this library.
+        pub type DefaultMemZeroizer = X86_64Sse2Zeroizer;
+        pub(crate) use X86_64Sse2Zeroizer as DefaultMemZeroizerConstructor;
     } else {
         /// Best (i.e. fastest) [`MemZeroizer`] available for the target.
         ///
