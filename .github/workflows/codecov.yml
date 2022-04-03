@@ -21,6 +21,9 @@ jobs:
         with:
           args: --ignore-tests --all-features
           out-type: Xml
+          run-types: AllTargets
+        env:
+          RUSTFLAGS: "-Ctarget-cpu=native"
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
