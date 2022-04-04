@@ -14,6 +14,7 @@ use crate::internals::zeroize as internals;
 use crate::macros::{
     debug_precondition_logaligned, debug_precondition_logmultiple, precondition_memory_range,
 };
+use crate::util::is_aligned_ptr_mut;
 
 /// Strategy for securely erasing memory.
 ///
@@ -252,7 +253,7 @@ impl MemZeroizer for VolatileWriteZeroizer {
 /// The use of this fence is therefore only a precaution.
 ///
 /// This zeroization method can benefit (in terms of performance) from using the
-/// [`MemZeroizer::zeroize_mem_aligned`] function instead of
+/// [`MemZeroizer::zeroize_mem_blocks`] function instead of
 /// [`MemZeroizer::zeroize_mem`] function if a minimum alignment is known
 /// at compile time.
 #[derive(Debug, Copy, Clone, Default)]
@@ -265,7 +266,7 @@ impl MemZeroizer for VolatileWrite8Zeroizer {
         debug_precondition_logmultiple!(B, len);
         // if we have 8 = 2^3 byte alignment then write 8 bytes at a time,
         // otherwise byte-for-byte
-        if (A >= 3) | ((ptr as usize) % 8 == 0) {
+        if (A >= 3) | is_aligned_ptr_mut(ptr, 8) {
             // SAFETY: by the above check, `ptr` is at least 8 byte aligned
             // SAFETY: the other safety requirements uphold by caller
             ptr = unsafe { internals::zeroize_align8_block8(ptr, len) };
@@ -294,7 +295,7 @@ impl MemZeroizer for VolatileWrite8Zeroizer {
 /// The use of this fence is therefore only a precaution.
 ///
 /// This zeroization method can benefit (in terms of performance) from using the
-/// [`MemZeroizer::zeroize_mem_aligned`] function instead of
+/// [`MemZeroizer::zeroize_mem_blocks`] function instead of
 /// [`MemZeroizer::zeroize_mem`] function if a minimum alignment is known
 /// at compile time.
 #[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
@@ -309,7 +310,7 @@ impl MemZeroizer for X86_64AvxZeroizer {
         debug_precondition_logmultiple!(B, len);
         // if we have 32 = 2^5 byte alignment then write 32 bytes at a time,
         // with 8 = 2^3 byte align do 8 bytes at a time, otherwise 1 byte at a time
-        if (A >= 5) | ((ptr as usize) % 32 == 0) {
+        if (A >= 5) | is_aligned_ptr_mut(ptr, 32) {
             // SAFETY: `ptr` is 32 byte aligned
             ptr = unsafe { internals::x86_64_simd32_unroll2_zeroize_align32_block32(ptr, len) };
             // zeroize tail
@@ -319,7 +320,7 @@ impl MemZeroizer for X86_64AvxZeroizer {
             if B < 3 {
                 unsafe { internals::zeroize_align4_tail8(ptr, len % 8) };
             }
-        } else if (A >= 3) | ((ptr as usize) % 8 == 0) {
+        } else if (A >= 3) | is_aligned_ptr_mut(ptr, 8) {
             // SAFETY: `ptr` is 8 byte aligned
             ptr = unsafe { internals::zeroize_align8_block8(ptr, len % 32) };
             if B < 3 {
@@ -347,7 +348,7 @@ impl MemZeroizer for X86_64AvxZeroizer {
 /// The use of this fence is therefore only a precaution.
 ///
 /// This zeroization method can benefit (in terms of performance) from using the
-/// [`MemZeroizer::zeroize_mem_aligned`] function instead of
+/// [`MemZeroizer::zeroize_mem_blocks`] function instead of
 /// [`MemZeroizer::zeroize_mem`] function if a minimum alignment is known
 /// at compile time.
 #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
@@ -362,7 +363,7 @@ impl MemZeroizer for X86_64Sse2Zeroizer {
         debug_precondition_logmultiple!(B, len);
         // if we have 16 = 2^4 byte alignment then write 16 bytes at a time,
         // with 8 = 2^3 byte align do 8 bytes at a time, otherwise 1 byte at a time
-        if (A >= 4) | ((ptr as usize) % 16 == 0) {
+        if (A >= 4) | is_aligned_ptr_mut(ptr, 16) {
             // SAFETY: `ptr` is 16 byte aligned
 
             ptr = unsafe { internals::x86_64_simd16_unroll2_zeroize_align16_block16(ptr, len) };
@@ -373,7 +374,7 @@ impl MemZeroizer for X86_64Sse2Zeroizer {
             if B < 3 {
                 unsafe { internals::zeroize_align4_tail8(ptr, len % 8) };
             }
-        } else if (A >= 3) | ((ptr as usize) % 8 == 0) {
+        } else if (A >= 3) | is_aligned_ptr_mut(ptr, 8) {
             // SAFETY: `ptr` is 8 byte aligned
             ptr = unsafe { internals::zeroize_align8_block8(ptr, len % 16) };
             if B < 3 {

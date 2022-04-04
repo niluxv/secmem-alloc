@@ -2,9 +2,11 @@
 #![cfg_attr(feature = "nightly_core_intrinsics", feature(core_intrinsics))]
 #![cfg_attr(feature = "nightly_stdsimd", feature(stdsimd))]
 #![cfg_attr(not(feature = "std"), no_std)]
-#![forbid(future_incompatible, rust_2018_compatibility, unsafe_op_in_unsafe_fn)]
-#![deny(rust_2018_idioms)]
+#![forbid(rust_2018_compatibility, unsafe_op_in_unsafe_fn)]
+#![deny(future_incompatible, rust_2018_idioms)]
 #![warn(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+// FIXME: disable when strict provenance is stabilised
+#![allow(unstable_name_collisions)]
 //! `secmem-alloc` is a crate designed allocate private/secret memory. It is
 //! intended to be used for storing cryptographic secrets in memory. This crate
 //! provides custom allocators using various techniques to improve secrecy of

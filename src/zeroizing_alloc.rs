@@ -18,6 +18,7 @@ use crate::zeroize::{DefaultMemZeroizer, DefaultMemZeroizerConstructor, MemZeroi
 use alloc::alloc::handle_alloc_error;
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::NonNull;
+use sptr::Strict;
 
 /// Wrapper around an allocator which zeroizes memory on deallocation. See the
 /// module level documentation.
@@ -93,7 +94,7 @@ where
 
         if cfg!(debug_assertions) {
             // you can't wrap around the address space
-            if (ptr as usize).checked_add(layout.size()).is_none() {
+            if ptr.addr().checked_add(layout.size()).is_none() {
                 handle_alloc_error(layout);
             }
         }
