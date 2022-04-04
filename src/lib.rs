@@ -1,5 +1,6 @@
 #![cfg_attr(feature = "nightly_allocator_api", feature(allocator_api))]
 #![cfg_attr(feature = "nightly_core_intrinsics", feature(core_intrinsics))]
+#![cfg_attr(feature = "nightly_stdsimd", feature(stdsimd))]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(future_incompatible, rust_2018_compatibility, unsafe_op_in_unsafe_fn)]
 #![deny(rust_2018_idioms)]
@@ -75,10 +76,6 @@
 //! - `std` (default): Enable functionality that requires `std`. Currently only
 //!   required for `Error` implements and required for tests. This feature is
 //!   enabled by default.
-//! - `cc` (default): Enable functionality which requires a C compiler. This is
-//!   currently only used to implement a secure memory zeroizer
-//!   `AsmRepStosZeroizer` written in assembly. This feature is enabled by
-//!   default.
 //! - `nightly_allocator_api` (requires nightly): Use the nightly allocator api
 //!   from the standard library (actually the `core` crate), gated behind the
 //!   nightly-only feature `allocator_api`. When disabled, a copy of the

@@ -67,7 +67,6 @@ fn main() {
 ## Cargo features
 
  - `std` (default): Enable functionality that requires `std`. Currently only required for `Error` implements and required for tests. This feature is enabled by default.
- - `cc` (default): Enable functionality which requires a C compiler. This is currently only used to implement a secure memory zeroizer `AsmRepStosZeroizer` written in assembly. This feature is enabled by default.
  - `nightly_allocator_api` (requires nightly): Use the nightly allocator api from the standard library (actually the `core` crate), gated behind the nightly-only feature `allocator_api`. When disabled, a copy of the allocator api included in this crate, available through `secmem_alloc::allocator_api`, will be used. This features requires a nightly compiler.
  - `nightly_core_intrinsics` (requires nightly): Use the intrinsics from the standard library (actually the `core` crate), gated behind the nightly-only feature `core_intrinsics`. This enables the extremely fast `VolatileMemsetZeroizer` zeroizer, and various other small optimisations. This features requires a nightly compiler.
  - `nightly` (requires nightly): Enable all nightly-only features (i.e. the above two). Enabling this feature is highly recommended when a nightly compiler is available. This features requires a nightly compiler.

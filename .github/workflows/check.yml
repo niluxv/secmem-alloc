@@ -70,6 +70,8 @@ jobs:
         with:
           command: test
           args: --all-features
+        env:
+          RUSTFLAGS: "-Ctarget-cpu=native"
 
   doc:
     name: Documentation

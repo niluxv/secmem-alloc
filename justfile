@@ -6,7 +6,7 @@ check:
 
 test:
     cargo +nightly test --no-default-features --features dev
-    cargo +nightly test --all-features
+    env RUSTFLAGS="-C target-cpu=native" cargo +nightly test --all-features
 
 miri:
     env MIRIFLAGS="-Zmiri-check-number-validity" cargo +nightly miri test --all-features
@@ -14,8 +14,10 @@ miri:
 miri-raw-ptr:
     env MIRIFLAGS="-Zmiri-tag-raw-pointers -Zmiri-check-number-validity" cargo +nightly miri test --all-features
 
-full-test: test
+test-address-sanatize:
     env CC="clang" env CFLAGS="-fsanitize=address -fno-omit-frame-pointer" env RUSTFLAGS="-C target-cpu=native -Z sanitizer=address" cargo +nightly test -Z build-std --target x86_64-unknown-linux-gnu --tests --all-features
+
+test-memory-sanatize:
     env CC="clang" env CFLAGS="-fsanitize=memory -fno-omit-frame-pointer" env RUSTFLAGS="-C target-cpu=native -Z sanitizer=memory" cargo +nightly test -Z build-std --target x86_64-unknown-linux-gnu --tests --all-features
 
 doc:
@@ -33,10 +35,10 @@ fmt-check:
 clippy:
     cargo +nightly clippy --all-features
 
-full-check: check full-test doc clippy fmt-check miri miri-raw-ptr
+full-check: check test test-memory-sanatize doc clippy fmt-check miri miri-raw-ptr
 
 bench:
-    env RUSTFLAGS="-C target-cpu=native" cargo +nightly bench --all-features
+    env RUSTFLAGS="-C target-cpu=native" cargo +nightly criterion --all-features
 
 code-cov:
     cargo +nightly tarpaulin --ignore-tests --all-features --out Html
@@ -52,4 +54,4 @@ generate-readme:
     cargo doc2readme
 
 mirai:
-    env MIRAI_FLAGS="--diag=library" cargo mirai
+    env MIRAI_FLAGS="--diag=library" cargo mirai --features dev

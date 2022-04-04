@@ -3,7 +3,16 @@
 //! Contains wrappers around intrinsics and ffi functions necessary for the
 //! [`crate::zeroize`] module.
 
-use crate::macros::precondition_memory_range;
+#[cfg(target_arch = "x86_64")]
+mod asm_x86_64;
+#[cfg(target_arch = "x86_64")]
+pub use asm_x86_64::*;
+
+mod system;
+pub use system::*;
+
+mod volatile_write;
+pub use volatile_write::*;
 
 /// Volatile write byte to memory.
 ///
@@ -17,141 +26,36 @@ use crate::macros::precondition_memory_range;
 // about bytes (therefore byte alignment), it *always* is.
 #[cfg(feature = "nightly_core_intrinsics")]
 pub unsafe fn volatile_memset(ptr: *mut u8, val: u8, len: usize) {
-    precondition_memory_range!(ptr, len);
+    crate::macros::precondition_memory_range!(ptr, len);
     // SAFETY: the caller must uphold the safety contract
     unsafe {
         core::intrinsics::volatile_set_memory(ptr, val, len);
     }
 }
 
-/// Overwrite memory with zeros. This operation will not be elided by the
-/// compiler.
-///
-/// This uses the `explicit_bzero` function present in many recent libcs.
-///
-/// # Safety
-/// It's C. But the safety requirement is quite obvious: The caller *must*
-/// ensure that `ptr` is valid for writes of `len` bytes, see the [`std::ptr`]
-/// documentation. In particular this function is not atomic.
-// In addition `ptr` needs to be properly aligned, but because we are talking
-// about bytes (therefore byte alignment), it *always* is.
-#[cfg(any(
-    target_os = "freebsd",
-    target_os = "dragonfly",
-    target_os = "openbsd",
-    all(target_env = "gnu", unix),
-    target_env = "musl"
-))]
-pub unsafe fn libc_explicit_bzero(ptr: *mut u8, len: usize) {
-    precondition_memory_range!(ptr, len);
-    // SAFETY: the caller must uphold the safety contract
-    unsafe {
-        libc::explicit_bzero(ptr as *mut libc::c_void, len as libc::size_t);
-    }
-}
-
-/// Overwrite memory with zeros. This operation will not be elided by the
-/// compiler.
-///
-/// This uses the `explicit_bzero` function present in many recent libcs.
-///
-/// # Safety
-/// It's C. But the safety requirement is quite obvious: The caller *must*
-/// ensure that `ptr` is valid for writes of `len` bytes, see the [`std::ptr`]
-/// documentation. In particular this function is not atomic.
-// In addition `ptr` needs to be properly aligned, but because we are talking
-// about bytes (therefore byte alignment), it *always* is.
-#[cfg(all(target_env = "gnu", windows))]
-pub unsafe fn libc_explicit_bzero(ptr: *mut u8, len: usize) {
-    precondition_memory_range!(ptr, len);
-    extern "C" {
-        fn explicit_bzero(ptr: *mut libc::c_void, len: libc::size_t);
-    }
-
-    // SAFETY: the caller must uphold the safety contract
-    unsafe {
-        explicit_bzero(ptr as *mut libc::c_void, len as libc::size_t);
-    }
-}
-
-/// Overwrite memory with zeros. This operation will not be elided by the
-/// compiler.
-///
-/// This uses the `explicit_bzero` function present in many recent libcs.
-///
-/// # Safety
-/// It's C. But the safety requirement is quite obvious: The caller *must*
-/// ensure that `ptr` is valid for writes of `len` bytes, see the [`std::ptr`]
-/// documentation. In particular this function is not atomic.
-// In addition `ptr` needs to be properly aligned, but because we are talking
-// about bytes (therefore byte alignment), it *always* is.
-#[cfg(target_os = "netbsd")]
-pub unsafe fn libc_explicit_bzero(ptr: *mut u8, len: usize) {
-    precondition_memory_range!(ptr, len);
-    // SAFETY: the caller must uphold the safety contract
-    unsafe {
-        libc::explicit_memset(
-            ptr as *mut libc::c_void,
-            0 as libc::c_int,
-            len as libc::size_t,
-        );
-    }
-}
-
-/// Overwrite memory with zeros. This operation will not be elided by the
-/// compiler.
-///
-/// This uses the `explicit_bzero` function present in many recent libcs.
-///
-/// # Safety
-/// It's C. But the safety requirement is quite obvious: The caller *must*
-/// ensure that `ptr` is valid for writes of `len` bytes, see the [`std::ptr`]
-/// documentation. In particular this function is not atomic.
-// In addition `ptr` needs to be properly aligned, but because we are talking
-// about bytes (therefore byte alignment), it *always* is.
-#[cfg(any(target_os = "macos", target_os = "ios"))]
-pub unsafe fn libc_explicit_bzero(ptr: *mut u8, len: usize) {
-    precondition_memory_range!(ptr, len);
-    // SAFETY: the caller must uphold the safety contract
-    unsafe {
-        // the zero value is a `c_int` (`i32` by default), but then converted to
-        // `unsigned char` (`u8`)
-        libc::memset_s(
-            ptr as *mut libc::c_void,
-            len as libc::size_t,
-            0 as libc::c_int,
-            len as libc::size_t,
-        );
-    }
-}
-
-/// Overwrite memory with zeros. This operation will not be elided by the
-/// compiler.
-///
-/// This uses inline assembly in C build and linked using `build.rs`. The
-/// implementation makes use of the efficient `rep stosb` memory set
-/// functionality on modern x86_64 cpus. This is especially fast for zeroizing
-/// large amounts of data, works on stable, does not require a libc, but uses a
-/// c compiler.
-///
-/// # Safety
-/// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
-/// the [`std::ptr`] documentation. In particular this function is not atomic.
-// In addition `ptr` needs to be properly aligned, but because we are talking
-// about bytes (therefore byte alignment), it *always* is.
-#[cfg(all(target_arch = "x86_64", target_feature = "ermsb", feature = "cc"))]
-pub unsafe fn c_asm_ermsb_zeroize(ptr: *mut u8, len: usize) {
-    precondition_memory_range!(ptr, len);
-    extern "C" {
-        fn zeroize_volatile(ptr: *mut u8, count: usize);
-    }
-    // SAFETY: the caller must uphold the safety contract
-    unsafe { zeroize_volatile(ptr, len) }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_b128_zeroizer<Z: FnOnce(*mut u8, usize)>(zeroize: Z) {
+        let mut array: [u8; 128] = [0xAF; 128];
+        let ptr: *mut u8 = (&mut array[..]).as_mut_ptr();
+        zeroize(ptr, 128);
+        assert_eq!(array, [0u8; 128]);
+    }
+
+    #[repr(align(64))]
+    struct B255Align64([u8; 257]);
+
+    fn test_b257_align64_block_zeroizer<Z: FnOnce(*mut u8, usize) -> *mut u8>(zeroize: Z) {
+        let mut array: B255Align64 = B255Align64([0xAF; 257]);
+        let ptr: *mut u8 = (&mut array.0[..]).as_mut_ptr();
+        let new_ptr = zeroize(ptr, 257);
+
+        assert_eq!(array.0[0..256], [0u8; 256]);
+        assert_eq!(array.0[256], 0xAF);
+        assert_eq!(new_ptr as usize, &array.0[256] as *const u8 as usize)
+    }
 
     fn test_b239_lowalign_zeroizer<Z: FnOnce(*mut u8, usize)>(zeroize: Z) {
         // ensure we get 8 byte aligned memory
@@ -174,12 +78,7 @@ mod tests {
     #[cfg(feature = "nightly_core_intrinsics")]
     #[test]
     fn test_volatile_memset() {
-        let mut array: [u8; 128] = [0xAF; 128];
-        unsafe {
-            let ptr: *mut u8 = (&mut array[..]).as_mut_ptr();
-            volatile_memset(ptr, 0, 128);
-        }
-        assert_eq!(array, [0u8; 128]);
+        test_b128_zeroizer(|ptr: *mut u8, len: usize| unsafe { volatile_memset(ptr, 0, len) })
     }
 
     #[cfg(any(
@@ -195,24 +94,20 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore)] // ffi
     fn test_explicit_bzero() {
-        let mut array: [u8; 128] = [0xAF; 128];
-        unsafe {
-            let ptr: *mut u8 = (&mut array[..]).as_mut_ptr();
-            libc_explicit_bzero(ptr, 128);
-        }
-        assert_eq!(array, [0u8; 128]);
+        test_b128_zeroizer(|ptr: *mut u8, len: usize| unsafe { libc_explicit_bzero(ptr, len) })
     }
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "ermsb", feature = "cc"))]
+    #[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
     #[test]
-    #[cfg_attr(miri, ignore)] // ffi, asm
+    #[cfg_attr(miri, ignore)] // asm
     fn test_asm_ermsb_zeroize() {
-        let mut array: [u8; 128] = [0xAF; 128];
-        unsafe {
-            let ptr: *mut u8 = (&mut array[..]).as_mut_ptr();
-            c_asm_ermsb_zeroize(ptr, 128);
-        }
-        assert_eq!(array, [0u8; 128]);
+        test_b128_zeroizer(|ptr: *mut u8, len: usize| unsafe { asm_ermsb_zeroize(ptr, len) })
+    }
+
+    #[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
+    #[test]
+    fn test_volatile_write_zeroize() {
+        test_b128_zeroizer(|ptr: *mut u8, len: usize| unsafe { volatile_write_zeroize(ptr, len) })
     }
 
     #[cfg(feature = "nightly_core_intrinsics")]
@@ -241,12 +136,74 @@ mod tests {
         })
     }
 
-    #[cfg(all(target_arch = "x86_64", target_feature = "ermsb", feature = "cc"))]
+    #[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
     #[test]
-    #[cfg_attr(miri, ignore)] // ffi, asm
+    #[cfg_attr(miri, ignore)] // asm
     fn test_asm_ermsb_zeroize_lowalign() {
         test_b239_lowalign_zeroizer(|ptr: *mut u8, len: usize| unsafe {
-            c_asm_ermsb_zeroize(ptr, len)
+            asm_ermsb_zeroize(ptr, len)
+        })
+    }
+
+    #[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
+    #[test]
+    fn test_volatile_write_zeroize_lowalign() {
+        test_b239_lowalign_zeroizer(|ptr: *mut u8, len: usize| unsafe {
+            volatile_write_zeroize(ptr, len)
+        })
+    }
+
+    #[test]
+    fn test_zeroize_align8_block8() {
+        test_b257_align64_block_zeroizer(|ptr, len| unsafe { zeroize_align8_block8(ptr, len) })
+    }
+
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+    #[test]
+    #[cfg_attr(miri, ignore)] // asm
+    fn test_x86_64_simd16_zeroize_align16_block16() {
+        test_b257_align64_block_zeroizer(|ptr, len| unsafe {
+            x86_64_simd16_zeroize_align16_block16(ptr, len)
+        })
+    }
+
+    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
+    #[test]
+    #[cfg_attr(miri, ignore)] // asm
+    fn test_x86_64_simd16_unroll2_zeroize_align16_block16() {
+        test_b257_align64_block_zeroizer(|ptr, len| unsafe {
+            x86_64_simd16_unroll2_zeroize_align16_block16(ptr, len)
+        })
+    }
+
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    #[test]
+    #[cfg_attr(miri, ignore)] // asm
+    fn test_x86_64_simd32_zeroize_align32_block32() {
+        test_b257_align64_block_zeroizer(|ptr, len| unsafe {
+            x86_64_simd32_zeroize_align32_block32(ptr, len)
+        })
+    }
+
+    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+    #[test]
+    #[cfg_attr(miri, ignore)] // asm
+    fn test_x86_64_simd32_unroll2_zeroize_align32_block32() {
+        test_b257_align64_block_zeroizer(|ptr, len| unsafe {
+            x86_64_simd32_unroll2_zeroize_align32_block32(ptr, len)
+        })
+    }
+
+    #[cfg(all(
+        target_arch = "x86_64",
+        target_feature = "avx512f",
+        feature = "nightly_stdsimd"
+    ))]
+    #[test]
+    #[cfg_attr(miri, ignore)] // asm
+    fn test_x86_64_simd64_zeroize_align64_block64() {
+        test_b257_align64_block_zeroizer(|ptr, len| unsafe {
+            x86_64_simd64_zeroize_align64_block64(ptr, len)
         })
     }
 }
