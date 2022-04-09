@@ -9,10 +9,7 @@ test:
     env RUSTFLAGS="-C target-cpu=native" cargo +nightly test --all-features
 
 miri:
-    env MIRIFLAGS="-Zmiri-check-number-validity" cargo +nightly miri test --all-features
-
-miri-raw-ptr:
-    env MIRIFLAGS="-Zmiri-tag-raw-pointers -Zmiri-check-number-validity" cargo +nightly miri test --all-features
+    env MIRIFLAGS="-Zmiri-strict-provenance -Zmiri-check-number-validity" cargo +nightly miri test --all-features
 
 test-address-sanatize:
     env CC="clang" env CFLAGS="-fsanitize=address -fno-omit-frame-pointer" env RUSTFLAGS="-C target-cpu=native -Z sanitizer=address" cargo +nightly test -Z build-std --target x86_64-unknown-linux-gnu --tests --all-features
@@ -35,7 +32,7 @@ fmt-check:
 clippy:
     cargo +nightly clippy --all-features
 
-full-check: check test test-memory-sanatize doc clippy fmt-check miri miri-raw-ptr
+full-check: check test test-memory-sanatize doc clippy fmt-check miri
 
 bench:
     env RUSTFLAGS="-C target-cpu=native" cargo +nightly criterion --all-features
