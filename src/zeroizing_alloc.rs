@@ -18,6 +18,7 @@ use crate::zeroize::{DefaultMemZeroizer, DefaultMemZeroizerConstructor, MemZeroi
 use alloc::alloc::handle_alloc_error;
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::NonNull;
+#[cfg(not(feature = "nightly_strict_provenance"))]
 use sptr::Strict;
 
 /// Wrapper around an allocator which zeroizes memory on deallocation. See the

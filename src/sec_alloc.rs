@@ -31,6 +31,7 @@ use core::alloc::Layout;
 use core::cell::Cell;
 use core::ptr::{self, NonNull};
 use mirai_annotations::debug_checked_precondition;
+#[cfg(not(feature = "nightly_strict_provenance"))]
 use sptr::Strict;
 
 /// Memory allocator for confidential memory. See the module level

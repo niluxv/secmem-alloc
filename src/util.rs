@@ -4,6 +4,7 @@
 
 use core::ptr::NonNull;
 use mirai_annotations::debug_checked_precondition;
+#[cfg(not(feature = "nightly_strict_provenance"))]
 use sptr::Strict;
 
 #[cfg(not(feature = "nightly_core_intrinsics"))]
