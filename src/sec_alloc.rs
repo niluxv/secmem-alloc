@@ -22,12 +22,17 @@
 
 use crate::allocator_api::{AllocError, Allocator};
 use crate::internals::mem;
-use crate::util::{align_ptr_mut, nonnull_as_mut_ptr, unlikely};
+use crate::util::{
+    align_up_ptr_mut, align_up_usize, is_aligned_ptr, large_offset_from, nonnull_as_mut_ptr,
+    unlikely,
+};
 use crate::zeroize::{DefaultMemZeroizer, MemZeroizer};
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::ptr::{self, NonNull};
 use mirai_annotations::debug_checked_precondition;
+#[cfg(not(feature = "nightly_strict_provenance"))]
+use sptr::Strict;
 
 /// Memory allocator for confidential memory. See the module level
 /// documentation.
@@ -102,7 +107,7 @@ impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
             "safety critical SecStackSinglePageAlloc invariant: offset in page size"
         );
         assert!(
-            self.page.as_ptr() as usize % 8 == 0,
+            is_aligned_ptr(self.page.as_ptr(), 8),
             "safety critical SecStackSinglePageAlloc invariant: page alignment"
         );
         assert!(
@@ -219,9 +224,10 @@ impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
     /// `false` even if the allocation pointed to by `ptr` is actually the
     /// final allocation.
     fn ptr_is_last_allocation(&self, ptr: NonNull<u8>, rounded_size: usize) -> bool {
-        // this doesn't overflow as `ptr` was returned by a previous allocation request
-        // so lies in our memory page, so `ptr` is larger than the page pointer
-        let alloc_start_offset = ptr.as_ptr() as usize - self.page.as_ptr() as usize;
+        // SAFETY: this doesn't overflow as `ptr` was returned by a previous allocation
+        // request so lies in our memory page, so `ptr` is larger than the page
+        // pointer
+        let alloc_start_offset = unsafe { large_offset_from(ptr.as_ptr(), self.page.as_ptr()) };
         // this doesn't overflow since `rounded_size` fits the allocation pointed to by
         // `ptr`
         let alloc_end_offset = alloc_start_offset + rounded_size;
@@ -238,7 +244,7 @@ impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
         debug_checked_precondition!(align.is_power_of_two());
 
         // SAFETY: creating a pointer is safe, using it not; `dangling` is non-null
-        let dangling: *mut u8 = align as *mut u8;
+        let dangling: *mut u8 = sptr::invalid_mut(align);
         let zerosized_slice: *mut [u8] = ptr::slice_from_raw_parts_mut(dangling, 0);
         // SAFETY: zerosized_slice has a non-null pointer part since `align` > 0
         unsafe { NonNull::new_unchecked(zerosized_slice) }
@@ -390,15 +396,16 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
             // slower path for large align
             // first pointer >= `stack_ptr` which is `layout.align()` bytes aligned
             // SAFETY: `layout.align()` is a power of 2
-            let next_aligned_ptr = unsafe { align_ptr_mut(stack_ptr, layout.align()) };
+            let next_aligned_ptr = unsafe { align_up_ptr_mut(stack_ptr, layout.align()) };
             // if this wraps the address space, then the result is null and the layout
             // doesn't fit the remaining memory of our page, so error
             if unlikely(next_aligned_ptr.is_null()) {
                 return Err(AllocError);
             }
-            // offset of `next_align_ptr` relative from our base page pointer; doesn't wrap
-            // since `next_align_ptr` is higher in the memory than `stack_ptr`
-            let next_align_pageoffset = next_aligned_ptr as usize - (self.page.as_ptr() as usize);
+            // offset of `next_align_ptr` relative from our base page pointer
+            // SAFETY: `next_align_ptr` is higher in the memory than `stack_ptr`
+            let next_align_pageoffset =
+                unsafe { large_offset_from(next_aligned_ptr, self.page.as_ptr()) };
             // error if `next_aligned_ptr` falls outside of our page
             if next_align_pageoffset >= self.page.page_size() {
                 return Err(AllocError);
@@ -447,9 +454,9 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
 
         // `ptr` must be returned by this allocator, so it lies in the currently used
         // part of the memory page
-        debug_checked_precondition!(self.page.as_ptr() as usize <= ptr.as_ptr() as usize);
+        debug_checked_precondition!(self.page.as_ptr().addr() <= ptr.as_ptr().addr());
         debug_checked_precondition!(
-            ptr.as_ptr() as usize <= self.page.as_ptr() as usize + self.stack_offset.get()
+            ptr.as_ptr().addr() <= self.page.as_ptr().addr() + self.stack_offset.get()
         );
 
         // SAFETY: this `rounded_req_size` is identical to the value of
@@ -458,7 +465,7 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
         // so `layout.size()` now is in the range `layout.size() ..=
         // rounded_req_size` for the values back then this will be important for
         // safety and correct functioning
-        let rounded_req_size = layout.size().wrapping_add(7usize) & !7usize;
+        let rounded_req_size = align_up_usize(layout.size(), 8);
         // securely wipe the deallocated memory
         // SAFETY: `ptr` is valid for writes of `rounded_req_size` bytes since it was
         // previously successfully allocated (by the safety contract for this
@@ -483,9 +490,10 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
         // otherwise, if this allocation was the last one on the stack, rewind the stack
         // offset so we can reuse the memory for later allocation requests
 
-        // this doesn't overflow as `ptr` was returned by a previous allocation request
-        // so lies in our memory page, so `ptr` is larger than the page pointer
-        let alloc_start_offset = ptr.as_ptr() as usize - self.page.as_ptr() as usize;
+        // SAFETY: this doesn't overflow as `ptr` was returned by a previous allocation
+        // request so lies in our memory page, so `ptr` is larger than the page
+        // pointer
+        let alloc_start_offset = unsafe { large_offset_from(ptr.as_ptr(), self.page.as_ptr()) };
         let alloc_end_offset = alloc_start_offset + rounded_req_size;
         // `alloc_end_offset` is the stack offset directly after it's allocation
         if alloc_end_offset == self.stack_offset.get() {
@@ -520,13 +528,13 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
 
         // `ptr` must be returned by this allocator, so it lies in the currently used
         // part of the memory page
-        debug_checked_precondition!(self.page.as_ptr() as usize <= ptr.as_ptr() as usize);
+        debug_checked_precondition!(self.page.as_ptr().addr() <= ptr.as_ptr().addr());
         debug_checked_precondition!(
-            ptr.as_ptr() as usize <= self.page.as_ptr() as usize + self.stack_offset.get()
+            ptr.as_ptr().addr() <= self.page.as_ptr().addr() + self.stack_offset.get()
         );
 
         // check whether the existing allocation has the requested alignment
-        if (ptr.as_ptr() as usize) % new_layout.align() == 0 {
+        if is_aligned_ptr(ptr.as_ptr(), new_layout.align()) {
             // old allocation has the (new) required alignment
             // we can shrink the allocation in place
             // for a non-final allocation (not last allocation on the memory page) this
@@ -536,12 +544,12 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
 
             // round old layout size to a multiple of 8, since allocation sizes are
             // multiples of 8
-            let rounded_size: usize = old_layout.size().wrapping_add(7usize) & !7usize;
+            let rounded_size: usize = align_up_usize(old_layout.size(), 8);
             // if the allocation is the final allocation in our memory page, then we can
             // shrink
 
             // shrink in place
-            let new_rounded_size: usize = new_layout.size().wrapping_add(7usize) & !7usize;
+            let new_rounded_size: usize = align_up_usize(new_layout.size(), 8);
             // SAFETY: `ptr` points to an allocation of size at least `rounded_size`, and
             // `new_rounded_size` not larger, so `ptr + new_rounded_size` still points
             // inside our memory page
@@ -610,36 +618,37 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
 
         // `ptr` must be returned by this allocator, so it lies in the currently used
         // part of the memory page
-        debug_checked_precondition!(self.page.as_ptr() as usize <= ptr.as_ptr() as usize);
+        debug_checked_precondition!(self.page.as_ptr().addr() <= ptr.as_ptr().addr());
         debug_checked_precondition!(
-            ptr.as_ptr() as usize <= self.page.as_ptr() as usize + self.stack_offset.get()
+            ptr.as_ptr().addr() <= self.page.as_ptr().addr() + self.stack_offset.get()
         );
 
         // check whether the existing allocation has the requested alignment
-        if (ptr.as_ptr() as usize) % new_layout.align() == 0 {
+        if is_aligned_ptr(ptr.as_ptr(), new_layout.align()) {
             // old allocation has the (new) required alignment
             // if the allocation is the final allocation in our memory page, then we can
             // increase the allocation in-place
 
             // round old layout size to a multiple of 8, since allocation sizes are
             // multiples of 8
-            let rounded_size: usize = old_layout.size().wrapping_add(7usize) & !7usize;
+            let rounded_size: usize = align_up_usize(old_layout.size(), 8);
             // `ptr` is allocated with `self` and `rounded_size` fits it and is a multiple
             // of 8
             if self.ptr_is_last_allocation(ptr, rounded_size) {
                 // increase allocation in-place
 
-                let new_rounded_size: usize = new_layout.size().wrapping_add(7usize) & !7usize;
+                let new_rounded_size: usize = align_up_usize(new_layout.size(), 8);
                 // if this wraps the address space, then the result is 0 and the layout doesn't
                 // fit the remaining memory of our page, so error
                 if unlikely(new_rounded_size == 0) {
                     return Err(AllocError);
                 }
 
-                // this doesn't overflow as `ptr` was returned by a previous allocation request
-                // so lies in our memory page, so `ptr` is larger than the page
-                // pointer
-                let alloc_start_offset = ptr.as_ptr() as usize - self.page.as_ptr() as usize;
+                // SAFETY: this doesn't overflow as `ptr` was returned by a previous allocation
+                // request so lies in our memory page, so `ptr` is larger than
+                // the page pointer
+                let alloc_start_offset =
+                    unsafe { large_offset_from(ptr.as_ptr(), self.page.as_ptr()) };
                 // if the requested allocation size doesn't fit the rest of our page, error
                 // the subtraction doesn't wrap since `alloc_start_offset` is the part of the
                 // page that is used (without counting the allocation currently

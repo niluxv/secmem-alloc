@@ -23,7 +23,15 @@ nightly_allocator_api = []
 nightly_core_intrinsics = []
 # even though stabilised, still necessary for avx512
 nightly_stdsimd = []
-nightly = ["nightly_allocator_api", "nightly_core_intrinsics", "nightly_stdsimd"]
+# enables strict provenance lints and uses strict provenance methods from std
+# instead of those from `sptr` (for inherent methods only)
+nightly_strict_provenance = []
+nightly = [
+    "nightly_allocator_api",
+    "nightly_core_intrinsics",
+    "nightly_stdsimd",
+    "nightly_strict_provenance",
+]
 # required features to run tests; additional features enable more tests
 dev = ["std", "nightly_allocator_api"]
 
@@ -31,6 +39,7 @@ dev = ["std", "nightly_allocator_api"]
 cfg-if = "1.0"
 libc = "0.2"
 mirai-annotations = "1.12"
+sptr = "0.3"
 thiserror = {version = "1.0", optional = true}
 
 [target.'cfg(windows)'.dependencies]

@@ -1,10 +1,17 @@
 #![cfg_attr(feature = "nightly_allocator_api", feature(allocator_api))]
 #![cfg_attr(feature = "nightly_core_intrinsics", feature(core_intrinsics))]
 #![cfg_attr(feature = "nightly_stdsimd", feature(stdsimd))]
+#![cfg_attr(feature = "nightly_strict_provenance", feature(strict_provenance))]
+#![cfg_attr(
+    feature = "nightly_strict_provenance",
+    deny(fuzzy_provenance_casts, lossy_provenance_casts)
+)]
 #![cfg_attr(not(feature = "std"), no_std)]
-#![forbid(future_incompatible, rust_2018_compatibility, unsafe_op_in_unsafe_fn)]
-#![deny(rust_2018_idioms)]
+#![forbid(rust_2018_compatibility, unsafe_op_in_unsafe_fn)]
+#![deny(future_incompatible, rust_2018_idioms)]
 #![warn(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+// FIXME: disable when strict provenance is stabilised
+#![allow(unstable_name_collisions)]
 //! `secmem-alloc` is a crate designed allocate private/secret memory. It is
 //! intended to be used for storing cryptographic secrets in memory. This crate
 //! provides custom allocators using various techniques to improve secrecy of
@@ -80,19 +87,26 @@
 //!   from the standard library (actually the `core` crate), gated behind the
 //!   nightly-only feature `allocator_api`. When disabled, a copy of the
 //!   allocator api included in this crate, available through
-//!   `secmem_alloc::allocator_api`, will be used. This features requires a
+//!   `secmem_alloc::allocator_api`, will be used. This feature requires a
 //!   nightly compiler.
 //! - `nightly_core_intrinsics` (requires nightly): Use the intrinsics from the
 //!   standard library (actually the `core` crate), gated behind the
 //!   nightly-only feature `core_intrinsics`. This enables the extremely fast
 //!   `VolatileMemsetZeroizer` zeroizer, and various other small optimisations.
-//!   This features requires a nightly compiler.
+//!   This feature requires a nightly compiler.
+//! - `nightly_stdsimd` (requires nightly): Required for avx512 simd API in the
+//!   standard libary, but currently unused. This feature requires a nightly
+//!   compiler.
+//! - `nightly_strict_provenance` (requires nightly): Enable strict provenance
+//!   lints and (mostly) use strict provenance API provided by the standard
+//!   library instead of the one from `sptr`. (Will still depend on and in a few
+//!   places even use `sptr`.)
 //! - `nightly` (requires nightly): Enable all nightly-only features (i.e. the
 //!   above two). Enabling this feature is highly recommended when a nightly
-//!   compiler is available. This features requires a nightly compiler.
+//!   compiler is available. This feature requires a nightly compiler.
 //! - `dev` (requires nightly): This feature enables all features required to
 //!   run the test-suite, and should only be enabled for that purpose. This
-//!   features currently requires a nightly compiler.
+//!   feature currently requires a nightly compiler.
 
 extern crate alloc;
 

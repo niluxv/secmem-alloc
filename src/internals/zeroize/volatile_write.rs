@@ -2,7 +2,8 @@
 //! cross-platform volatile writes.
 
 use crate::macros::precondition_memory_range;
-use mirai_annotations::debug_checked_precondition_eq;
+use crate::util::is_aligned_ptr_mut;
+use mirai_annotations::debug_checked_precondition;
 
 /// Zeroize the memory pointed to by `ptr` and of size `len` bytes, by
 /// overwriting it byte for byte using volatile writes.
@@ -43,7 +44,7 @@ pub unsafe fn volatile_write_zeroize(mut ptr: *mut u8, len: usize) {
 /// Furthermore, `ptr` *must* be at least 8 byte aligned.
 pub unsafe fn zeroize_align8_block8(mut ptr: *mut u8, len: usize) -> *mut u8 {
     precondition_memory_range!(ptr, len);
-    debug_checked_precondition_eq!((ptr as usize) % 8, 0);
+    debug_checked_precondition!(is_aligned_ptr_mut(ptr, 8));
 
     let nblocks = (len - len % 8) / 8;
     for _i in 0..nblocks {
@@ -76,7 +77,7 @@ pub unsafe fn zeroize_align8_block8(mut ptr: *mut u8, len: usize) -> *mut u8 {
 /// Furthermore, `ptr` *must* be at least 4 byte aligned.
 pub unsafe fn zeroize_align4_tail8(mut ptr: *mut u8, len: usize) {
     precondition_memory_range!(ptr, len);
-    debug_checked_precondition_eq!((ptr as usize) % 4, 0);
+    debug_checked_precondition!(is_aligned_ptr_mut(ptr, 4));
 
     if len % 8 >= 4 {
         // SAFETY: `ptr` is valid for `len % 8` bytes by caller contract

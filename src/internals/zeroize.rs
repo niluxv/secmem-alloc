@@ -36,6 +36,7 @@ pub unsafe fn volatile_memset(ptr: *mut u8, val: u8, len: usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sptr::Strict;
 
     fn test_b128_zeroizer<Z: FnOnce(*mut u8, usize)>(zeroize: Z) {
         let mut array: [u8; 128] = [0xAF; 128];
@@ -54,7 +55,7 @@ mod tests {
 
         assert_eq!(array.0[0..256], [0u8; 256]);
         assert_eq!(array.0[256], 0xAF);
-        assert_eq!(new_ptr as usize, &array.0[256] as *const u8 as usize)
+        assert_eq!(new_ptr.addr(), (&array.0[256] as *const u8).addr())
     }
 
     fn test_b239_lowalign_zeroizer<Z: FnOnce(*mut u8, usize)>(zeroize: Z) {

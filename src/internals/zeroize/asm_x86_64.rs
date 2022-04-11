@@ -2,6 +2,8 @@
 //! cpus.
 
 use crate::macros::precondition_memory_range;
+use crate::util::is_aligned_ptr_mut;
+use mirai_annotations::debug_checked_precondition;
 
 /// Overwrite memory with zeros. This operation will not be elided by the
 /// compiler.
@@ -57,7 +59,7 @@ pub unsafe fn x86_64_simd16_zeroize_align16_block16(mut ptr: *mut u8, len: usize
     use core::arch::x86_64 as arch;
 
     precondition_memory_range!(ptr, len);
-    mirai_annotations::debug_checked_precondition_eq!((ptr as usize) % 16, 0);
+    debug_checked_precondition!(is_aligned_ptr_mut(ptr, 16));
 
     let nblocks = (len - len % 16) / 16;
 
@@ -110,6 +112,9 @@ pub unsafe fn x86_64_simd16_unroll2_zeroize_align16_block16(
     len: usize,
 ) -> *mut u8 {
     use core::arch::x86_64 as arch;
+
+    precondition_memory_range!(ptr, len);
+    debug_checked_precondition!(is_aligned_ptr_mut(ptr, 16));
 
     let nblocks = (len - len % 16) / 16;
 
@@ -170,7 +175,7 @@ pub unsafe fn x86_64_simd32_zeroize_align32_block32(mut ptr: *mut u8, len: usize
     use core::arch::x86_64 as arch;
 
     precondition_memory_range!(ptr, len);
-    mirai_annotations::debug_checked_precondition_eq!((ptr as usize) % 32, 0);
+    debug_checked_precondition!(is_aligned_ptr_mut(ptr, 32));
 
     let nblocks = (len - len % 32) / 32;
 
@@ -225,7 +230,7 @@ pub unsafe fn x86_64_simd32_unroll2_zeroize_align32_block32(
     use core::arch::x86_64 as arch;
 
     precondition_memory_range!(ptr, len);
-    mirai_annotations::debug_checked_precondition_eq!((ptr as usize) % 32, 0);
+    debug_checked_precondition!(is_aligned_ptr_mut(ptr, 32));
 
     let nblocks = (len - len % 32) / 32;
 
@@ -290,7 +295,7 @@ pub unsafe fn x86_64_simd64_zeroize_align64_block64(mut ptr: *mut u8, len: usize
     use core::arch::x86_64 as arch;
 
     precondition_memory_range!(ptr, len);
-    mirai_annotations::debug_checked_precondition_eq!((ptr as usize) % 64, 0);
+    debug_checked_precondition!(is_aligned_ptr_mut(ptr, 64));
 
     let nblocks = (len - len % 64) / 64;
 
