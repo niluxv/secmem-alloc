@@ -3,7 +3,7 @@
 #[cfg(unix)]
 use core::ffi::c_void;
 use core::ptr::NonNull;
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "redox")))]
 use libc::{c_int, off_t, size_t};
 #[cfg(feature = "std")]
 use thiserror::Error;
@@ -21,8 +21,13 @@ pub fn page_size() -> usize {
 }
 
 cfg_if::cfg_if! {
-    if #[cfg(miri)] {
-        /// Page size shim for miri.
+    if #[cfg(any(miri, target_os = "redox"))] {
+        /// Miri: Page size shim for miri.
+        ///
+        /// Redox: For redox, the page size is constant, see the [relibc source][1].
+        ///
+        /// [1]:
+        /// https://gitlab.redox-os.org/redox-os/relibc/-/blob/master/src/platform/redox/mod.rs#L609
         #[cfg(not(tarpaulin_include))]
         fn get_sys_page_size() -> usize {
             4096
@@ -226,6 +231,46 @@ cfg_if::cfg_if! {
                 // if this fails then `page` is deallocated by it's drop implementation
                 page.mlock().map_err(|_| PageAllocError)?;
                 Ok(page)
+            }
+        }
+    } else if #[cfg(target_os = "redox")] {
+        impl Page {
+            /// Allocate a new page of memory using (anonymous) `fmap` syscall. Redox never swaps
+            /// memory.
+            ///
+            /// # Errors
+            /// The function returns an `PageAllocError` if the `fmap` syscall
+            /// fails.
+            pub fn alloc_new_lock() -> Result<Self, PageAllocError> {
+                use syscall::flag::MapFlags;
+
+                let page_size: usize = page_size();
+
+                let mut flags = MapFlags::empty();
+                flags.insert(MapFlags::PROT_READ);
+                flags.insert(MapFlags::PROT_WRITE);
+                flags.insert(MapFlags::MAP_PRIVATE);
+
+                let map = syscall::data::Map {
+                    offset: 0,
+                    size: page_size,
+                    flags,
+                    address: 0,
+                };
+
+                let fd = !0;
+
+                let addr = unsafe { syscall::call::fmap(fd, &map) }.map_err(|_| PageAllocError)?;
+                debug_assert!(addr != 0);
+                // TODO: pointer crime! But `redox_syscall`s fault.
+                let ptr = addr as *mut u8;
+                // SAFETY: `fmap` syscall never returns zero; it would error instead.
+                let page_ptr = unsafe { NonNull::new_unchecked(ptr) };
+
+                Ok(Self {
+                    page_ptr,
+                    page_size,
+                })
             }
         }
     } else if #[cfg(unix)] {
