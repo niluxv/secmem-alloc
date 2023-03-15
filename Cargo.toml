@@ -39,18 +39,18 @@ dev = ["std", "nightly_allocator_api"]
 cfg-if = "1.0"
 libc = "0.2"
 mirai-annotations = "1.12"
-rustix = { version = "0.36", features = ["mm", "param"] }
+rustix = { version = "0.37", features = ["mm", "param"] }
 sptr = "0.3"
 thiserror = {version = "1.0", optional = true}
 
 [target.'cfg(target_os = "redox")'.dependencies]
-redox_syscall = {version = "0.2"}
+redox_syscall = {version = "0.3"}
 
 [target.'cfg(windows)'.dependencies]
 winapi = {version = "0.3.9", features = ["impl-default", "memoryapi", "sysinfoapi"]}
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.4"
 
 [[bench]]
 name = "bench_zeroizers"
