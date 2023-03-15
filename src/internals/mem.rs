@@ -3,8 +3,6 @@
 #[cfg(unix)]
 use core::ffi::c_void;
 use core::ptr::NonNull;
-#[cfg(all(unix, not(target_os = "redox")))]
-use libc::{c_int, off_t, size_t};
 #[cfg(feature = "std")]
 use thiserror::Error;
 #[cfg(windows)]
@@ -13,9 +11,6 @@ use winapi::ctypes::c_void;
 /// Return the page size on the running system.
 ///
 /// Is constant during the entire execution of a process.
-// TODO: should we store the page size in a static to avoid repeat FFI calls to
-// get the page size? with cross language LTO and static libc linking that
-// shouldn't be necessary
 pub fn page_size() -> usize {
     get_sys_page_size()
 }
@@ -33,15 +28,9 @@ cfg_if::cfg_if! {
             4096
         }
     } else if #[cfg(unix)] {
-        /// Return the page size on the running system by querying libc.
+        /// Return the page size on the running system using the `rustix` crate.
         fn get_sys_page_size() -> usize {
-            unsafe {
-                // the pagesize must always fit in a `size_t` (`usize`)
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                {
-                    libc::sysconf(libc::_SC_PAGESIZE) as size_t
-                }
-            }
+            rustix::param::page_size()
         }
     } else if #[cfg(windows)] {
         /// Return the page size on the running system by querying kernel32.lib.
@@ -132,7 +121,7 @@ cfg_if::cfg_if! {
                     // SAFETY: we allocated/mapped this page in the constructor so it is safe to
                     // unmap now `munmap` also unlocks a page if it was locked so it is
                     // not necessary to `munlock` the page if it was locked.
-                    //libc::munmap(ptr, self.page_size());
+                    // emulate `munmap(ptr, self.page_size())`
                     std::alloc::dealloc(
                         ptr as *mut u8,
                         std::alloc::Layout::from_size_align(page_size, page_size).unwrap(),
@@ -150,7 +139,7 @@ cfg_if::cfg_if! {
                     // SAFETY: we allocated/mapped this page in the constructor so it is safe to
                     // unmap now `munmap` also unlocks a page if it was locked so it is
                     // not necessary to `munlock` the page if it was locked.
-                    libc::munmap(ptr, self.page_size());
+                    rustix::mm::munmap(ptr, self.page_size()).unwrap();
                 }
                 // SAFETY: `NonNull<u8>` and `usize` both do not drop so we need not
                 // worry about subsequent drops
@@ -183,15 +172,10 @@ cfg_if::cfg_if! {
         impl Page {
             fn alloc_new() -> Result<Self, PageAllocError> {
                 let _addr: *mut c_void = core::ptr::null_mut();
-                let page_size: size_t = page_size();
-                let _prot: c_int = libc::PROT_READ | libc::PROT_WRITE;
-                // NORESERVE disables backing the memory map with swap space
-                let _flags = libc::MAP_PRIVATE | libc::MAP_NORESERVE | libc::MAP_ANONYMOUS;
-                let _fd: c_int = -1;
-                let _offset: off_t = 0;
+                let page_size = page_size();
 
                 let page_ptr: *mut u8 = unsafe {
-                    //libc::mmap(_addr, page_size, _prot, _flags, _fd, _offset)
+                    // emulate `mmap(_addr, page_size, _prot, _flags, _fd, _offset)`
                     std::alloc::alloc_zeroed(
                         std::alloc::Layout::from_size_align(page_size, page_size).unwrap(),
                     )
@@ -213,7 +197,7 @@ cfg_if::cfg_if! {
 
             fn mlock(&mut self) -> Result<(), MemLockError> {
                 let res = {
-                    //libc::mlock(self.as_c_ptr_mut(), self.page_size())
+                    // emulate `mlock(self.as_c_ptr_mut(), self.page_size())`
                     let _ptr = self.as_c_ptr_mut();
                     let _ps = self.page_size();
                     0
@@ -244,7 +228,7 @@ cfg_if::cfg_if! {
             pub fn alloc_new_lock() -> Result<Self, PageAllocError> {
                 use syscall::flag::MapFlags;
 
-                let page_size: usize = page_size();
+                let page_size = page_size();
 
                 let mut flags = MapFlags::empty();
                 flags.insert(MapFlags::PROT_READ);
@@ -286,9 +270,11 @@ cfg_if::cfg_if! {
             /// # Errors
             /// The function returns an `PageAllocError` if the `mmap` call fails.
             fn alloc_new_noreserve() -> Result<Self, PageAllocError> {
+                use rustix::mm::{ProtFlags, MapFlags};
+
                 let addr: *mut c_void = core::ptr::null_mut();
-                let page_size: size_t = page_size();
-                let prot: c_int = libc::PROT_READ | libc::PROT_WRITE;
+                let page_size = page_size();
+                let prot = ProtFlags::READ | ProtFlags::WRITE;
                 // NORESERVE disables backing the memory map with swap space
                 // it is not available (anymore) on FreeBSD/DragonFlyBSD (never implemented)
                 // also unimplemented on other BSDs, but the flag is there for compat...
@@ -296,31 +282,25 @@ cfg_if::cfg_if! {
                 // from being included in a core dump (but ideally, disable core dumps entirely)
                 cfg_if::cfg_if!{
                     if #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))] {
-                        let flags = libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_NOCORE;
+                        let flags = MapFlags::PRIVATE | MapFlags::NOCORE;
                     } else {
-                        let flags = libc::MAP_PRIVATE | libc::MAP_NORESERVE | libc::MAP_ANONYMOUS;
+                        let flags = MapFlags::PRIVATE | MapFlags::NORESERVE;
                     }
                 }
 
-                let fd: c_int = -1;
-                let offset: off_t = 0;
-
                 let page_ptr: *mut c_void = unsafe {
-                    libc::mmap(addr, page_size, prot, flags, fd, offset)
-                };
+                    rustix::mm::mmap_anonymous(addr, page_size, prot, flags)
+                }.map_err(|_| PageAllocError)?;
 
-                if page_ptr.is_null() || page_ptr == libc::MAP_FAILED {
-                    Err(PageAllocError)
-                } else {
-                    let page_ptr = unsafe {
-                        // SAFETY: we just checked that `page_ptr` is non-null
-                        NonNull::new_unchecked(page_ptr as *mut u8)
-                    };
-                    Ok(Self {
-                        page_ptr,
-                        page_size,
-                    })
-                }
+                let page_ptr = unsafe {
+                    // SAFETY: if `mmap` is successful, the result is non-zero
+                    NonNull::new_unchecked(page_ptr as *mut u8)
+                };
+                Ok(Self {
+                    page_ptr,
+                    page_size,
+                })
+
             }
 
             /// Lock the memory page to physical memory.
@@ -334,13 +314,8 @@ cfg_if::cfg_if! {
             /// use a swap space encrypted with an ephemeral secret key, and
             /// hibernation should be disabled (both on the OS level).
             fn mlock(&mut self) -> Result<(), MemLockError> {
-                let res = unsafe { libc::mlock(self.as_c_ptr_mut(), self.page_size()) };
-
-                if res == 0 {
-                    Ok(())
-                } else {
-                    Err(MemLockError)
-                }
+                unsafe { rustix::mm::mlock(self.as_c_ptr_mut(), self.page_size()) }
+                    .map_err(|_| MemLockError)
             }
 
             /// Allocate a new page of memory using (anonymous) `mmap` with the

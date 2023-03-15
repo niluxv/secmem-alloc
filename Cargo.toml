@@ -39,6 +39,7 @@ dev = ["std", "nightly_allocator_api"]
 cfg-if = "1.0"
 libc = "0.2"
 mirai-annotations = "1.12"
+rustix = { version = "0.36", features = ["mm", "param"] }
 sptr = "0.3"
 thiserror = {version = "1.0", optional = true}
 
