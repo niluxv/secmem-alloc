@@ -1,6 +1,10 @@
+// https://github.com/rust-lang/rust/issues/32838
 #![cfg_attr(feature = "nightly_allocator_api", feature(allocator_api))]
+// for `volatile_memset`
 #![cfg_attr(feature = "nightly_core_intrinsics", feature(core_intrinsics))]
-#![cfg_attr(feature = "nightly_stdsimd", feature(stdsimd))]
+// https://github.com/rust-lang/rust/issues/111137
+#![cfg_attr(feature = "nightly_stdsimd", feature(stdarch_x86_avx512))]
+// https://github.com/rust-lang/rust/issues/95228
 #![cfg_attr(feature = "nightly_strict_provenance", feature(strict_provenance))]
 #![cfg_attr(
     feature = "nightly_strict_provenance",
