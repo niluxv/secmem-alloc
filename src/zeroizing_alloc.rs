@@ -9,13 +9,13 @@
 //! in memory but not dropped. This can happen for example when resizing
 //! [`Vec`]s.
 
-use crate::allocator_api::{AllocError, Allocator};
 use crate::macros::{
     debug_handleallocerror_precondition, debug_handleallocerror_precondition_valid_layout,
     precondition_memory_range,
 };
 use crate::zeroize::{DefaultMemZeroizer, DefaultMemZeroizerConstructor, MemZeroizer};
 use alloc::alloc::handle_alloc_error;
+use allocator_api2::alloc::{AllocError, Allocator};
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::NonNull;
 #[cfg(not(feature = "nightly_strict_provenance"))]
@@ -182,13 +182,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::allocator_api::{Box, Vec};
     use crate::zeroize::TestZeroizer;
     use std::alloc::System;
 
     #[test]
     fn box_allocation_8b() {
-        use crate::boxed::Box;
-
         let allocator = ZeroizeAlloc::with_zeroizer(System, TestZeroizer);
         let _heap_mem = Box::new_in([1u8; 8], &allocator);
         // drop `_heap_mem`
@@ -197,8 +196,6 @@ mod tests {
 
     #[test]
     fn box_allocation_9b() {
-        use crate::boxed::Box;
-
         let allocator = ZeroizeAlloc::with_zeroizer(System, TestZeroizer);
         let _heap_mem = Box::new_in([1u8; 9], &allocator);
         // drop `_heap_mem`
@@ -207,8 +204,6 @@ mod tests {
 
     #[test]
     fn box_allocation_zst() {
-        use crate::boxed::Box;
-
         let allocator = ZeroizeAlloc::with_zeroizer(System, TestZeroizer);
         let _heap_mem = Box::new_in([(); 8], &allocator);
         // drop `_heap_mem`

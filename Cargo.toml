@@ -18,8 +18,8 @@ all-features = true
 
 [features]
 default = ["std"]
-std = ["thiserror", "winapi/std"]
-nightly_allocator_api = []
+std = ["dep:thiserror", "allocator-api2/std", "winapi/std"]
+nightly_allocator_api = ["allocator-api2/nightly"]
 nightly_core_intrinsics = []
 # even though stabilised, still necessary for avx512
 nightly_stdsimd = []
@@ -33,9 +33,10 @@ nightly = [
     "nightly_strict_provenance",
 ]
 # required features to run tests; additional features enable more tests
-dev = ["std", "nightly_allocator_api"]
+dev = ["std"]
 
 [dependencies]
+allocator-api2 = { version = "0.2", default-features = false }
 cfg-if = "1.0"
 libc = "0.2"
 mirai-annotations = "1.12"
