@@ -2,15 +2,15 @@
 
 use super::{MemLockError, Page, PageAllocError};
 
+use core::ffi::c_void;
 use core::ptr::NonNull;
-use winapi::ctypes::c_void;
 
 /// Return the page size on the running system by querying kernel32.lib.
 pub fn page_size() -> usize {
-    use winapi::um::sysinfoapi::{GetSystemInfo, LPSYSTEM_INFO, SYSTEM_INFO};
+    use windows::Win32::System::SystemInformation::{GetSystemInfo, SYSTEM_INFO};
 
     let mut sysinfo = SYSTEM_INFO::default();
-    let sysinfo_ptr: LPSYSTEM_INFO = &mut sysinfo as *mut SYSTEM_INFO;
+    let sysinfo_ptr = &mut sysinfo as *mut SYSTEM_INFO;
     // SAFETY: `sysinfo_ptr` points to a valid (empty/all zeros) `SYSTEM_INFO`
     unsafe { GetSystemInfo(sysinfo_ptr) };
     // the pagesize must always fit in a `usize` (on windows it is a `u32`)
@@ -32,17 +32,16 @@ impl Page {
     /// The function returns an `PageAllocError` if the `VirtualAlloc` call
     /// fails.
     fn alloc_new() -> Result<Self, PageAllocError> {
-        use winapi::shared::basetsd::SIZE_T;
-        use winapi::shared::minwindef::{DWORD, LPVOID};
-        use winapi::um::memoryapi::VirtualAlloc;
-        use winapi::um::winnt::{MEM_COMMIT, MEM_RESERVE, PAGE_READWRITE};
+        use windows::Win32::System::Memory::{
+            VirtualAlloc, MEM_COMMIT, MEM_RESERVE, PAGE_PROTECTION_FLAGS, PAGE_READWRITE,
+            VIRTUAL_ALLOCATION_TYPE,
+        };
 
-        let addr: LPVOID = core::ptr::null_mut();
-        let page_size: SIZE_T = page_size();
-        let alloc_type: DWORD = MEM_RESERVE | MEM_COMMIT;
-        let protect: DWORD = PAGE_READWRITE;
+        let page_size = page_size();
+        let alloc_type: VIRTUAL_ALLOCATION_TYPE = MEM_RESERVE | MEM_COMMIT;
+        let protect: PAGE_PROTECTION_FLAGS = PAGE_READWRITE;
 
-        let page_ptr: LPVOID = unsafe { VirtualAlloc(addr, page_size, alloc_type, protect) };
+        let page_ptr: *mut c_void = unsafe { VirtualAlloc(None, page_size, alloc_type, protect) };
 
         if page_ptr.is_null() {
             Err(PageAllocError)
@@ -69,16 +68,9 @@ impl Page {
     /// solution than to use a swap space encrypted with an ephemeral secret
     /// key, and hibernation should be disabled (both on the OS level).
     fn lock(&mut self) -> Result<(), MemLockError> {
-        use winapi::shared::minwindef::BOOL;
-        use winapi::um::memoryapi::VirtualLock;
+        use windows::Win32::System::Memory::VirtualLock;
 
-        let res: BOOL = unsafe { VirtualLock(self.as_c_ptr_mut(), self.page_size()) };
-
-        if res == 0 {
-            Err(MemLockError)
-        } else {
-            Ok(())
-        }
+        unsafe { VirtualLock(self.as_c_ptr_mut(), self.page_size()) }.map_err(|_| MemLockError)
     }
 
     /// Allocate a new page of memory using `VirtualAlloc` and `VirtualLock`
@@ -98,16 +90,11 @@ impl Page {
 
 impl Drop for Page {
     fn drop(&mut self) {
-        use winapi::shared::minwindef::LPVOID;
-        use winapi::um::memoryapi::VirtualFree;
-        use winapi::um::winnt::MEM_RELEASE;
+        use windows::Win32::System::Memory::{VirtualFree, MEM_RELEASE};
 
-        let ptr: LPVOID = self.as_c_ptr_mut();
-        unsafe {
-            // SAFETY: we allocated/mapped this page in the constructor so it is safe to
-            // unmap now
-            VirtualFree(ptr, 0, MEM_RELEASE);
-        }
+        // SAFETY: we allocated/mapped this page in the constructor so it is safe to
+        // unmap now
+        unsafe { VirtualFree(self.as_c_ptr_mut(), 0, MEM_RELEASE) }.unwrap();
         // SAFETY: `NonNull<u8>` and `usize` both do not drop so we need not
         // worry about subsequent drops
     }

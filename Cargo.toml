@@ -18,7 +18,7 @@ all-features = true
 
 [features]
 default = ["std"]
-std = ["dep:thiserror", "allocator-api2/std", "winapi/std"]
+std = ["dep:thiserror", "allocator-api2/std"]
 nightly_allocator_api = ["allocator-api2/nightly"]
 nightly_core_intrinsics = []
 # even though stabilised, still necessary for avx512
@@ -47,7 +47,7 @@ thiserror = { version = "1.0", optional = true }
 rustix = { version = "0.38", features = ["mm", "param"] }
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3.9", features = ["impl-default", "memoryapi", "sysinfoapi"] }
+windows = { version = "0.56.0", features = ["Win32_System_SystemInformation", "Win32_System_Memory"] }
 
 [dev-dependencies]
 criterion = "0.5"
