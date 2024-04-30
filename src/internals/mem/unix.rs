@@ -32,13 +32,16 @@ impl Page {
         let addr: *mut c_void = core::ptr::null_mut();
         let page_size = page_size();
         let prot = ProtFlags::READ | ProtFlags::WRITE;
-        // NORESERVE disables backing the memory map with swap space
-        // it is not available (anymore) on FreeBSD/DragonFlyBSD (never implemented)
-        // also unimplemented on other BSDs, but the flag is there for compat...
-        // FreeBSD + DragonFlyBSD have a `MAP_NOCORE` flag which excludes this memory
-        // from being included in a core dump (but ideally, disable core dumps entirely)
+        // NORESERVE disables backing the memory map with swap space. It requires
+        // `mlock` to be used on the resulting page before use. Redox, FreeBSD
+        // and DragonFlyBSD don't have NORESERVE. Other BSDs also don't implement it,
+        // but it is available for compatibility. FreeBSD and DragonflyBSD have a NOCORE
+        // flag, which hides the page from core dumps (memory dumps when the process
+        // crashes).
         cfg_if::cfg_if! {
-            if #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))] {
+            if #[cfg(target_os = "redox")] {
+                let flags = MapFlags::PRIVATE;
+            } else if #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))] {
                 let flags = MapFlags::PRIVATE | MapFlags::NOCORE;
             } else {
                 let flags = MapFlags::PRIVATE | MapFlags::NORESERVE;
