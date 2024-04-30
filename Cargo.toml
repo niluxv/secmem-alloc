@@ -40,13 +40,13 @@ cfg-if = "1.0"
 libc = "0.2"
 mirai-annotations = "1.12"
 sptr = "0.3"
-thiserror = {version = "1.0", optional = true}
+thiserror = { version = "1.0", optional = true }
 
 [target.'cfg(windows)'.dependencies]
-winapi = {version = "0.3.9", features = ["impl-default", "memoryapi", "sysinfoapi"]}
+winapi = { version = "0.3.9", features = ["impl-default", "memoryapi", "sysinfoapi"] }
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.5"
 
 [[bench]]
 name = "bench_zeroizers"
