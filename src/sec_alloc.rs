@@ -466,6 +466,12 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
         // rounded_req_size` for the values back then this will be important for
         // safety and correct functioning
         let rounded_req_size = align_up_usize(layout.size(), 8);
+
+        // The pointer we got from the caller might have provenance for only
+        // `layout.size()` bytes. We reconstruct the pointer with our full page
+        // provenance, so that `ptr` is valid for `rounded_req_size` byte writes.
+        let ptr = self.page.as_ptr_mut().with_addr(ptr.as_ptr().addr());
+
         // securely wipe the deallocated memory
         // SAFETY: `ptr` is valid for writes of `rounded_req_size` bytes since it was
         // previously successfully allocated (by the safety contract for this
@@ -474,7 +480,7 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
         // multiple of 8
         unsafe {
             self.zeroizer
-                .zeroize_mem_blocks::<3, 3>(ptr.as_ptr(), rounded_req_size);
+                .zeroize_mem_blocks::<3, 3>(ptr, rounded_req_size);
         }
         // `self.bytes - rounded_req_size` doesn't overflow since the memory has
         // previously been allocated
@@ -493,7 +499,7 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
         // SAFETY: this doesn't overflow as `ptr` was returned by a previous allocation
         // request so lies in our memory page, so `ptr` is larger than the page
         // pointer
-        let alloc_start_offset = unsafe { large_offset_from(ptr.as_ptr(), self.page.as_ptr()) };
+        let alloc_start_offset = unsafe { large_offset_from(ptr, self.page.as_ptr()) };
         let alloc_end_offset = alloc_start_offset + rounded_req_size;
         // `alloc_end_offset` is the stack offset directly after it's allocation
         if alloc_end_offset == self.stack_offset.get() {
