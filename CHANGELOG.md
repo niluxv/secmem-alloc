@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.2.1 - 2024-05-01
+### Fixed
+- __Undefined Behaviour (UB)__ in `SecStackSinglePageAlloc` when not using the
+  `nightly_allocator_api` feature.
+
+  The UB would occur when the user deallocates a `secmem_proc::boxed::Box` of a size which
+  is not a multiple of 8.
+
+  __Detailed Description__
+
+  The issue is that stds nightly `Allocator` is "magic" w.r.t. the `deallocate` function.
+  The pointer input variable (first input) received by the allocator, doesn't have the
+  provenance of the pointer that was passed to `deallocate`, but instead the potentially
+  larger provenance of the pointer that was returned by `allocate` for this allocation.
+
+  We round up allocation request sizes to multiples of 8, and then in `deallocate` we
+  zeroize this full (size multiple of 8) allocation. However, in our stable "clone"
+  of `Allocator`, there is no "magic", and the pointer passed to `deallocate` can have
+  a provenance to only the number of bytes that were requested in the `allocate` call,
+  i.e. not rounded up to a multiple of 8.
+
 ## 0.2.0 - 2022-04-12
 ### Added
 - X86_64 SSE2 and AVX simd zeroizers using inline assembly.
