@@ -3,29 +3,21 @@ name: Code Coverage
 on: [push, pull_request]
 
 jobs:
-  code_cov:
-    name: Code Coverage Tarpaulin + Codecov
+  test:
+    name: coverage
     runs-on: ubuntu-latest
+    container:
+      image: xd009642/tarpaulin:develop-nightly
+      options: --security-opt seccomp=unconfined
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      - name: Install nightly toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-
-      - name: Run cargo-tarpaulin
-        uses: actions-rs/tarpaulin@v0.1
-        with:
-          args: --ignore-tests --all-features
-          out-type: Xml
-          run-types: AllTargets
-        env:
-          RUSTFLAGS: "-Ctarget-cpu=native"
+      - name: Generate code coverage
+        run: |
+          cargo +nightly tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v2
         with:
-          files: ./cobertura.xml
+          fail_ci_if_error: true

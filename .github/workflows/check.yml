@@ -154,4 +154,4 @@ jobs:
         env:
           MIRI_LOG: 1
           MIRI_BACKTRACE: 1
-          MIRIFLAGS: -Zmiri-strict-provenance -Zmiri-check-number-validity
+          MIRIFLAGS: -Zmiri-strict-provenance
