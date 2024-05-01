@@ -1,6 +1,6 @@
 //! Windows `VirtualAlloc` memory page allocation.
 
-use super::{MemLockError, Page, PageAllocError};
+use super::Page;
 
 use core::ffi::c_void;
 use core::ptr::NonNull;
@@ -20,6 +20,15 @@ pub fn page_size() -> usize {
     }
 }
 
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
+pub enum PageAllocError {
+    #[cfg_attr(feature = "std", error("could not map a memory page"))]
+    VirtualAlloc,
+    #[cfg_attr(feature = "std", error("could not lock memory page: {0}"))]
+    VirtualLock(windows::core::Error),
+}
+
 impl Page {
     /// Get a mutable pointer to the start of the memory page.
     fn as_c_ptr_mut(&self) -> *mut c_void {
@@ -31,7 +40,7 @@ impl Page {
     /// # Errors
     /// The function returns an `PageAllocError` if the `VirtualAlloc` call
     /// fails.
-    fn alloc_new() -> Result<Self, PageAllocError> {
+    fn alloc_new() -> Result<Self, ()> {
         use windows::Win32::System::Memory::{
             VirtualAlloc, MEM_COMMIT, MEM_RESERVE, PAGE_PROTECTION_FLAGS, PAGE_READWRITE,
             VIRTUAL_ALLOCATION_TYPE,
@@ -44,7 +53,7 @@ impl Page {
         let page_ptr: *mut c_void = unsafe { VirtualAlloc(None, page_size, alloc_type, protect) };
 
         if page_ptr.is_null() {
-            Err(PageAllocError)
+            Err(())
         } else {
             let page_ptr = unsafe {
                 // SAFETY: we just checked that `page_ptr` is non-null
@@ -67,10 +76,10 @@ impl Page {
     /// achieve. If memory contents are really secret than there is no other
     /// solution than to use a swap space encrypted with an ephemeral secret
     /// key, and hibernation should be disabled (both on the OS level).
-    fn lock(&mut self) -> Result<(), MemLockError> {
+    fn lock(&mut self) -> Result<(), windows::core::Error> {
         use windows::Win32::System::Memory::VirtualLock;
 
-        unsafe { VirtualLock(self.as_c_ptr_mut(), self.page_size()) }.map_err(|_| MemLockError)
+        unsafe { VirtualLock(self.as_c_ptr_mut(), self.page_size()) }
     }
 
     /// Allocate a new page of memory using `VirtualAlloc` and `VirtualLock`
@@ -82,8 +91,8 @@ impl Page {
     /// The function returns an `PageAllocError` if the `VirtualAlloc` or
     /// `VirtualLock` call fails.
     pub fn alloc_new_lock() -> Result<Self, PageAllocError> {
-        let mut page = Self::alloc_new()?;
-        page.lock().map_err(|_| PageAllocError)?;
+        let mut page = Self::alloc_new().map_err(|_| PageAllocError::VirtualAlloc)?;
+        page.lock().map_err(|e| PageAllocError::VirtualLock(e))?;
         Ok(page)
     }
 }

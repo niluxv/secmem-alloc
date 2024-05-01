@@ -1,6 +1,6 @@
 //! Miri shims for memory management. Not accurate, but better than nothing.
 
-use super::{MemLockError, Page, PageAllocError};
+use super::Page;
 use core::ptr::NonNull;
 
 /// Page size shim for miri.
@@ -9,20 +9,29 @@ pub fn page_size() -> usize {
     4096
 }
 
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
+pub enum PageAllocError {
+    #[cfg_attr(feature = "std", error("trying to create invalid layout"))]
+    Layout(std::alloc::LayoutError),
+    #[cfg_attr(feature = "std", error("could not allocate memory"))]
+    Alloc,
+    #[cfg_attr(feature = "std", error("could not lock memory"))]
+    Lock,
+}
+
 #[cfg(not(tarpaulin_include))]
 impl Page {
     fn alloc_new() -> Result<Self, PageAllocError> {
         let page_size = page_size();
 
-        let page_ptr: *mut u8 = unsafe {
-            //libc::mmap(_addr, page_size, _prot, _flags, _fd, _offset)
-            std::alloc::alloc_zeroed(
-                std::alloc::Layout::from_size_align(page_size, page_size).unwrap(),
-            )
-        };
+        //libc::mmap(_addr, page_size, _prot, _flags, _fd, _offset)
+        let layout = std::alloc::Layout::from_size_align(page_size, page_size)
+            .map_err(|e| PageAllocError::Layout(e))?;
+        let page_ptr: *mut u8 = unsafe { std::alloc::alloc_zeroed(layout) };
 
         if page_ptr.is_null() {
-            Err(PageAllocError)
+            Err(PageAllocError::Alloc)
         } else {
             let page_ptr = unsafe {
                 // SAFETY: we just checked that `page_ptr` is non-null
@@ -36,7 +45,7 @@ impl Page {
         }
     }
 
-    fn mlock(&mut self) -> Result<(), MemLockError> {
+    fn mlock(&mut self) -> Result<(), PageAllocError> {
         let res = {
             //libc::mlock(self.as_c_ptr_mut(), self.page_size())
             let _ptr = self.as_ptr_mut();
@@ -47,14 +56,14 @@ impl Page {
         if res == 0 {
             Ok(())
         } else {
-            Err(MemLockError)
+            Err(PageAllocError::Lock)
         }
     }
 
     pub fn alloc_new_lock() -> Result<Self, PageAllocError> {
         let mut page = Self::alloc_new()?;
         // if this fails then `page` is deallocated by it's drop implementation
-        page.mlock().map_err(|_| PageAllocError)?;
+        page.mlock()?;
         Ok(page)
     }
 }
@@ -64,14 +73,11 @@ impl Drop for Page {
     fn drop(&mut self) {
         let ptr = self.as_ptr_mut();
         let page_size = self.page_size();
+
+        //libc::munmap(ptr, self.page_size());
+        let layout = std::alloc::Layout::from_size_align(page_size, page_size).unwrap();
         // SAFETY: we allocated this page in the constructor so it is safe to deallocate
         // now.
-        unsafe {
-            //libc::munmap(ptr, self.page_size());
-            std::alloc::dealloc(
-                ptr,
-                std::alloc::Layout::from_size_align(page_size, page_size).unwrap(),
-            );
-        }
+        unsafe { std::alloc::dealloc(ptr, layout) };
     }
 }

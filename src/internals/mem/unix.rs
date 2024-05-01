@@ -1,6 +1,6 @@
 //! Unix `mmap` private anonymous memory pages.
 
-use super::{MemLockError, Page, PageAllocError};
+use super::Page;
 
 use core::ffi::c_void;
 use core::ptr::NonNull;
@@ -8,6 +8,15 @@ use core::ptr::NonNull;
 /// Return the page size on the running system using the `rustix` crate.
 pub fn page_size() -> usize {
     rustix::param::page_size()
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "std", derive(thiserror::Error))]
+pub enum PageAllocError {
+    #[cfg_attr(feature = "std", error("could not map a memory page: {0}"))]
+    Mmap(rustix::io::Errno),
+    #[cfg_attr(feature = "std", error("could not lock memory page: {0}"))]
+    Mlock(rustix::io::Errno),
 }
 
 impl Page {
@@ -26,7 +35,7 @@ impl Page {
     ///
     /// # Errors
     /// The function returns an `PageAllocError` if the `mmap` call fails.
-    fn alloc_new_noreserve() -> Result<Self, PageAllocError> {
+    fn alloc_new_noreserve() -> Result<Self, rustix::io::Errno> {
         use rustix::mm::{MapFlags, ProtFlags};
 
         let addr: *mut c_void = core::ptr::null_mut();
@@ -49,8 +58,7 @@ impl Page {
         }
 
         let page_ptr: *mut c_void =
-            unsafe { rustix::mm::mmap_anonymous(addr, page_size, prot, flags) }
-                .map_err(|_| PageAllocError)?;
+            unsafe { rustix::mm::mmap_anonymous(addr, page_size, prot, flags) }?;
 
         // SAFETY: if `mmap` is successful, the result is non-zero
         let page_ptr = unsafe { NonNull::new_unchecked(page_ptr as *mut u8) };
@@ -71,9 +79,8 @@ impl Page {
     /// contents are really secret than there is no other solution than to
     /// use a swap space encrypted with an ephemeral secret key, and
     /// hibernation should be disabled (both on the OS level).
-    fn mlock(&mut self) -> Result<(), MemLockError> {
+    fn mlock(&mut self) -> Result<(), rustix::io::Errno> {
         unsafe { rustix::mm::mlock(self.as_c_ptr_mut(), self.page_size()) }
-            .map_err(|_| MemLockError)
     }
 
     /// Allocate a new page of memory using (anonymous) `mmap` with the
@@ -86,8 +93,8 @@ impl Page {
     /// The function returns an `PageAllocError` if the `mmap` or `mlock` call
     /// fails.
     pub fn alloc_new_lock() -> Result<Self, PageAllocError> {
-        let mut page = Self::alloc_new_noreserve()?;
-        page.mlock().map_err(|_| PageAllocError)?;
+        let mut page = Self::alloc_new_noreserve().map_err(|e| PageAllocError::Mmap(e))?;
+        page.mlock().map_err(|e| PageAllocError::Mlock(e))?;
         Ok(page)
     }
 }

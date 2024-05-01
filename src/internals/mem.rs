@@ -4,21 +4,6 @@ use core::ptr::NonNull;
 #[cfg(feature = "std")]
 use thiserror::Error;
 
-/// Could not allocate a memory page.
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "std", derive(Error))]
-#[cfg_attr(feature = "std", error("could not map a memory page"))]
-pub struct PageAllocError;
-
-/// Could not mlock a range of pages.
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "std", derive(Error))]
-#[cfg_attr(
-    feature = "std",
-    error("could not lock the memory page to physical memory")
-)]
-struct MemLockError;
-
 /// An single allocated page of memory.
 pub struct Page {
     /// Pointer to the start of the page.
@@ -58,12 +43,12 @@ impl Page {
 cfg_if::cfg_if! {
     if #[cfg(miri)] {
         mod miri;
-        pub use miri::page_size;
+        pub use miri::PageAllocError;
     } else if #[cfg(unix)] {
         mod unix;
-        pub use unix::page_size;
+        pub use unix::PageAllocError;
     } else if #[cfg(windows)] {
         mod windows;
-        pub use windows::page_size;
+        pub use windows::PageAllocError;
     }
 }
