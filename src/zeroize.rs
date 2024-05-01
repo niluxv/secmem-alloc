@@ -322,7 +322,7 @@ impl MemZeroizer for X86_64AvxZeroizer {
             }
         } else if (A >= 3) | is_aligned_ptr_mut(ptr, 8) {
             // SAFETY: `ptr` is 8 byte aligned
-            ptr = unsafe { internals::zeroize_align8_block8(ptr, len % 32) };
+            ptr = unsafe { internals::zeroize_align8_block8(ptr, len) };
             if B < 3 {
                 unsafe { internals::zeroize_align4_tail8(ptr, len % 8) };
             }
@@ -376,7 +376,7 @@ impl MemZeroizer for X86_64Sse2Zeroizer {
             }
         } else if (A >= 3) | is_aligned_ptr_mut(ptr, 8) {
             // SAFETY: `ptr` is 8 byte aligned
-            ptr = unsafe { internals::zeroize_align8_block8(ptr, len % 16) };
+            ptr = unsafe { internals::zeroize_align8_block8(ptr, len) };
             if B < 3 {
                 unsafe { internals::zeroize_align4_tail8(ptr, len % 8) };
             }

@@ -76,7 +76,7 @@ pub unsafe fn zeroize_align8_block8(mut ptr: *mut u8, len: usize) -> *mut u8 {
 ///
 /// Furthermore, `ptr` *must* be at least 4 byte aligned.
 pub unsafe fn zeroize_align4_tail8(mut ptr: *mut u8, len: usize) {
-    precondition_memory_range!(ptr, len);
+    precondition_memory_range!(ptr, len % 8);
     debug_checked_precondition!(is_aligned_ptr_mut(ptr, 4));
 
     if len % 8 >= 4 {
