@@ -20,13 +20,13 @@
 //!   in the global allocator leaks). This *could* make some exploits harder,
 //!   but not impossible.
 
-use crate::allocator_api::{AllocError, Allocator};
 use crate::internals::mem;
 use crate::util::{
     align_up_ptr_mut, align_up_usize, is_aligned_ptr, large_offset_from, nonnull_as_mut_ptr,
     unlikely,
 };
 use crate::zeroize::{DefaultMemZeroizer, MemZeroizer};
+use allocator_api2::alloc::{AllocError, Allocator};
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::ptr::{self, NonNull};
@@ -706,6 +706,7 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::allocator_api::{Box, Vec};
     use crate::zeroize::TestZeroizer;
     use std::mem::drop;
 
@@ -726,8 +727,6 @@ mod tests {
 
     #[test]
     fn box_allocation_8b() {
-        use crate::boxed::Box;
-
         let allocator =
             SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
         allocator.consistency_check();
@@ -741,8 +740,6 @@ mod tests {
 
     #[test]
     fn box_allocation_9b() {
-        use crate::boxed::Box;
-
         let allocator =
             SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
         allocator.consistency_check();
@@ -756,8 +753,6 @@ mod tests {
 
     #[test]
     fn box_allocation_zst() {
-        use crate::boxed::Box;
-
         let allocator =
             SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
         allocator.consistency_check();
@@ -771,8 +766,6 @@ mod tests {
 
     #[test]
     fn multiple_box_allocations() {
-        use crate::boxed::Box;
-
         let allocator =
             SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
         allocator.consistency_check();
@@ -796,8 +789,6 @@ mod tests {
 
     #[test]
     fn multiple_box_allocations_high_align() {
-        use crate::boxed::Box;
-
         let allocator =
             SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
         allocator.consistency_check();
@@ -821,8 +812,6 @@ mod tests {
 
     #[test]
     fn multiple_box_allocations_mixed_align() {
-        use crate::boxed::Box;
-
         let allocator =
             SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
         allocator.consistency_check();
@@ -846,8 +835,6 @@ mod tests {
 
     #[test]
     fn many_box_allocations_mixed_align_nonstacked_drop() {
-        use crate::boxed::Box;
-
         let allocator =
             SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
         allocator.consistency_check();
@@ -911,7 +898,6 @@ mod tests {
 
     #[test]
     fn vec_allocation_nonfinal_grow() {
-        use crate::boxed::Box;
         type A = SecStackSinglePageAlloc<TestZeroizer>;
 
         let allocator: A = SecStackSinglePageAlloc::new().expect("allocator creation failed");
@@ -953,7 +939,6 @@ mod tests {
 
     #[test]
     fn vec_allocation_nonfinal_shrink() {
-        use crate::boxed::Box;
         type A = SecStackSinglePageAlloc<TestZeroizer>;
 
         let allocator: A = SecStackSinglePageAlloc::new().expect("allocator creation failed");

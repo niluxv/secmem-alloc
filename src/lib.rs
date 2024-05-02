@@ -1,6 +1,10 @@
+// https://github.com/rust-lang/rust/issues/32838
 #![cfg_attr(feature = "nightly_allocator_api", feature(allocator_api))]
+// for `volatile_memset`
 #![cfg_attr(feature = "nightly_core_intrinsics", feature(core_intrinsics))]
-#![cfg_attr(feature = "nightly_stdsimd", feature(stdsimd))]
+// https://github.com/rust-lang/rust/issues/111137
+#![cfg_attr(feature = "nightly_stdsimd", feature(stdarch_x86_avx512))]
+// https://github.com/rust-lang/rust/issues/95228
 #![cfg_attr(feature = "nightly_strict_provenance", feature(strict_provenance))]
 #![cfg_attr(
     feature = "nightly_strict_provenance",
@@ -25,9 +29,8 @@
 //! ```
 //! #![feature(allocator_api)]
 //! // requires `nightly_allocator_api` crate feature to be enabled and a nightly compiler
-//! use secmem_alloc::allocator_api::Allocator;
+//! use secmem_alloc::allocator_api::{Allocator, Global, Vec};
 //! use secmem_alloc::zeroizing_alloc::ZeroizeAlloc;
-//! use std::alloc::Global;
 //!
 //! fn read_password<A: Allocator>(buf: &mut Vec<u8, A>) {
 //!     // query password from the user and put it in `buf`
@@ -57,8 +60,7 @@
 //! // if you enable the `nightly_allocator_api` crate feature, the following line is necessary
 //! #![feature(allocator_api)]
 //!
-//! use secmem_alloc::allocator_api::Allocator;
-//! use secmem_alloc::boxed::Box;
+//! use secmem_alloc::allocator_api::{Allocator, Box};
 //! use secmem_alloc::sec_alloc::SecStackSinglePageAlloc;
 //!
 //! fn get_secret_key<A: Allocator>(buf: &mut Box<[u8; 256], A>) {
@@ -110,19 +112,19 @@
 
 extern crate alloc;
 
+/// Re-exports the most important items of the [`allocator-api2` crate].
+///
+/// [`allocator-api2` crate]: https://crates.io/crates/allocator-api2
+pub mod allocator_api {
+    pub use allocator_api2::alloc::{Allocator, Global};
+    pub use allocator_api2::boxed::Box;
+    pub use allocator_api2::vec::Vec;
+}
+
 mod internals;
 mod macros;
 mod util;
 
-#[cfg(not(feature = "nightly_allocator_api"))]
-pub mod allocator_api;
-#[cfg(feature = "nightly_allocator_api")]
-/// Nightly allocator api, imported from the standard library.
-pub mod allocator_api {
-    pub use core::alloc::{AllocError, Allocator};
-}
-
-pub mod boxed;
 pub mod sec_alloc;
 pub mod zeroize;
 pub mod zeroizing_alloc;
