@@ -162,7 +162,7 @@ cfg_if::cfg_if! {
                 unsafe {
                     // SAFETY: we allocated/mapped this page in the constructor so it is safe to
                     // unmap now
-                    VirtualFree(ptr, self.page_size(), MEM_RELEASE);
+                    VirtualFree(ptr, 0, MEM_RELEASE);
                 }
                 // SAFETY: `NonNull<u8>` and `usize` both do not drop so we need not
                 // worry about subsequent drops
