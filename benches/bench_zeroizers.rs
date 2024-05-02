@@ -1,13 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-#[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
-use secmem_alloc::zeroize::AsmRepStosZeroizer;
-#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
-use secmem_alloc::zeroize::X86_64AvxZeroizer;
-#[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
-use secmem_alloc::zeroize::X86_64Sse2Zeroizer;
 use secmem_alloc::zeroize::{
-    LibcZeroizer, MemZeroizer, VolatileMemsetZeroizer, VolatileWrite8Zeroizer,
-    VolatileWriteZeroizer,
+    MemZeroizer, MemsetAsmBarierZeroizer, VolatileMemsetZeroizer, VolatileWrite8Zeroizer,
 };
 
 fn zeroize_b127<Z: MemZeroizer>(z: Z, array: &mut [u8; 127]) {
@@ -50,21 +43,9 @@ macro_rules! bench_zeroizers {
         $cgroup.bench_function("VolatileMemsetZeroizer", |b| {
             b.iter(|| $bench_function(VolatileMemsetZeroizer, &mut $array.0))
         });
-        $cgroup.bench_function("LibcZeroizer", |b| {
-            b.iter(|| $bench_function(LibcZeroizer, &mut $array.0))
+        $cgroup.bench_function("MemsetAsmBarierZeroizer", |b| {
+            b.iter(|| $bench_function(MemsetAsmBarierZeroizer, &mut $array.0))
         });
-        $cgroup.bench_function("VolatileWriteZeroizer", |b| {
-            b.iter(|| $bench_function(VolatileWriteZeroizer, &mut $array.0))
-        });
-        $cgroup.bench_function("VolatileWrite8Zeroizer", |b| {
-            b.iter(|| $bench_function(VolatileWrite8Zeroizer, &mut $array.0))
-        });
-        #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
-        {
-            $cgroup.bench_function("X86_64Sse2Zeroizer", |b| {
-                b.iter(|| $bench_function(X86_64Sse2Zeroizer, &mut $array.0))
-            });
-        }
         #[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
         {
             $cgroup.bench_function("X86_64AvxZeroizer", |b| {

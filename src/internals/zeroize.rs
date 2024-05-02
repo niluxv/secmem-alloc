@@ -1,35 +1,103 @@
 //! Utility functions for securely wiping memory.
 //!
-//! Contains wrappers around intrinsics and ffi functions necessary for the
-//! [`crate::zeroize`] module.
+//! Utility functions for the [`crate::zeroize`] module, to securely wiping
+//! memory, implemented using cross-platform pure Rust volatile writes.
 
-#[cfg(target_arch = "x86_64")]
-mod asm_x86_64;
-#[cfg(target_arch = "x86_64")]
-pub use asm_x86_64::*;
+use crate::macros::precondition_memory_range;
+use crate::util::is_aligned_ptr_mut;
+use mirai_annotations::debug_checked_precondition;
 
-mod system;
-pub use system::*;
-
-mod volatile_write;
-pub use volatile_write::*;
-
-/// Volatile write byte to memory.
+/// Zeroize the memory pointed to by `ptr` and of size `len` bytes, by
+/// overwriting it byte for byte using volatile writes.
 ///
-/// This uses the [`core::intrinsics::volatile_set_memory`] intrinsic and can
-/// only be used on nightly, with the `nightly` feature enabled.
+/// This is guarantied to be not elided by the compiler.
 ///
 /// # Safety
 /// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
 /// the [`std::ptr`] documentation. In particular this function is not atomic.
-// In addition `ptr` needs to be properly aligned, but because we are talking
-// about bytes (therefore byte alignment), it *always* is.
-#[cfg(feature = "nightly_core_intrinsics")]
-pub unsafe fn volatile_memset(ptr: *mut u8, val: u8, len: usize) {
-    crate::macros::precondition_memory_range!(ptr, len);
-    // SAFETY: the caller must uphold the safety contract
-    unsafe {
-        core::intrinsics::volatile_set_memory(ptr, val, len);
+pub unsafe fn volatile_write_zeroize(mut ptr: *mut u8, len: usize) {
+    precondition_memory_range!(ptr, len);
+    for _i in 0..len {
+        // SAFETY: `ptr` originally pointed into an allocation of `len` bytes so now,
+        // after `_i` steps `len - _i > 0` bytes are left, so `ptr` is valid for
+        // a byte write
+        unsafe {
+            core::ptr::write_volatile(ptr, 0u8);
+        }
+        // SAFETY: after increment, `ptr` points into the same allocation if `_i == len`
+        // or one byte past it, so `add` is sound
+        ptr = unsafe { ptr.add(1) };
+    }
+}
+
+/// Zeroize the memory pointed to by `ptr` for `len` rounded down to a multiple
+/// of 8 bytes.
+///
+/// This function rounds down `len` to a multiple of 8 and then zeroizes the
+/// memory pointed to by `ptr` for that length. This operation is guarantied to
+/// be not elided by the compiler. If `len` is a multiple of 8 then this
+/// zeroizes the entire specified block of memory. Returns a pointer to the byte
+/// after the last zeroed byte, with the provenance of `ptr`.
+///
+/// # Safety
+/// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
+/// the [`std::ptr`] documentation. In particular this function is not atomic.
+///
+/// Furthermore, `ptr` *must* be at least 8 byte aligned.
+pub unsafe fn zeroize_align8_block8(mut ptr: *mut u8, len: usize) -> *mut u8 {
+    precondition_memory_range!(ptr, len);
+    debug_checked_precondition!(is_aligned_ptr_mut(ptr, 8));
+
+    let nblocks = (len - len % 8) / 8;
+    for _i in 0..nblocks {
+        // SAFETY: `ptr` originally pointed into an allocation of `len` bytes so now,
+        // after `_i` steps `len - 8*_i >= 8` bytes are left, so `ptr` is valid
+        // for an 8 byte write SAFETY: `ptr` was originally 8 byte aligned by
+        // caller contract and we only added a multiple of 8 so it is still 8
+        // byte aligned
+        unsafe {
+            core::ptr::write_volatile(ptr.cast::<u64>(), 0u64);
+        }
+        // SAFETY: after increment, `ptr` points into the same allocation or (if `8*_i
+        // == len`) at most one byte past it, so `add` is sound; `ptr` stays 8
+        // byte aligned
+        ptr = unsafe { ptr.add(8) };
+    }
+    ptr
+}
+
+/// Zeroize the memory pointed to by `ptr` and of size `len % 8` bytes.
+///
+/// This can be used to zeroize the bytes left unzeroized by
+/// `zeroize_align8_block8` if `len` is not a multiple of 8. This operation is
+/// guarantied to be not elided by the compiler.
+///
+/// # Safety
+/// The caller *must* ensure that `ptr` is valid for writes of `len` bytes, see
+/// the [`std::ptr`] documentation. In particular this function is not atomic.
+///
+/// Furthermore, `ptr` *must* be at least 4 byte aligned.
+pub unsafe fn zeroize_align4_tail8(mut ptr: *mut u8, len: usize) {
+    precondition_memory_range!(ptr, len % 8);
+    debug_checked_precondition!(is_aligned_ptr_mut(ptr, 4));
+
+    if len % 8 >= 4 {
+        // SAFETY: `ptr` is valid for `len % 8` bytes by caller contract
+        // SAFETY: `ptr` is still 4 byte aligned by caller contract
+        unsafe {
+            core::ptr::write_volatile(ptr.cast::<u32>(), 0u32);
+        }
+        ptr = unsafe { ptr.add(4) };
+    }
+    // the final remainder (at most 3 bytes) is zeroed byte-for-byte
+    // SAFETY: `ptr` has been incremented by a multiple of 4 <= `len` so `ptr`
+    // points to an allocation of `len % 4` bytes, so `ptr` can be written to
+    // and incremented `len % 4` times
+    for _i in 0..(len % 4) {
+        unsafe {
+            core::ptr::write_volatile(ptr, 0u8);
+        }
+        ptr = unsafe { ptr.add(1) };
     }
 }
 
@@ -76,135 +144,18 @@ mod tests {
         assert_eq!(&array[..], &expected[..]);
     }
 
-    #[cfg(feature = "nightly_core_intrinsics")]
-    #[test]
-    fn test_volatile_memset() {
-        test_b128_zeroizer(|ptr: *mut u8, len: usize| unsafe { volatile_memset(ptr, 0, len) })
-    }
-
-    #[cfg(any(
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd",
-        target_os = "macos",
-        target_os = "ios",
-        target_env = "gnu",
-        target_env = "musl"
-    ))]
-    #[test]
-    #[cfg_attr(miri, ignore)] // ffi
-    fn test_explicit_bzero() {
-        test_b128_zeroizer(|ptr: *mut u8, len: usize| unsafe { libc_explicit_bzero(ptr, len) })
-    }
-
-    #[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
-    #[test]
-    #[cfg_attr(miri, ignore)] // asm
-    fn test_asm_ermsb_zeroize() {
-        test_b128_zeroizer(|ptr: *mut u8, len: usize| unsafe { asm_ermsb_zeroize(ptr, len) })
-    }
-
-    #[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
     #[test]
     fn test_volatile_write_zeroize() {
-        test_b128_zeroizer(|ptr: *mut u8, len: usize| unsafe { volatile_write_zeroize(ptr, len) })
+        test_b128_zeroizer(|ptr, len| unsafe { volatile_write_zeroize(ptr, len) })
     }
 
-    #[cfg(feature = "nightly_core_intrinsics")]
     #[test]
-    fn test_volatile_memset_lowalign() {
-        test_b239_lowalign_zeroizer(|ptr: *mut u8, len: usize| unsafe {
-            volatile_memset(ptr, 0, len)
-        })
-    }
-
-    #[cfg(any(
-        target_os = "freebsd",
-        target_os = "dragonfly",
-        target_os = "openbsd",
-        target_os = "netbsd",
-        target_os = "macos",
-        target_os = "ios",
-        target_env = "gnu",
-        target_env = "musl"
-    ))]
-    #[test]
-    #[cfg_attr(miri, ignore)] // ffi
-    fn test_explicit_bzero_lowalign() {
-        test_b239_lowalign_zeroizer(|ptr: *mut u8, len: usize| unsafe {
-            libc_explicit_bzero(ptr, len)
-        })
-    }
-
-    #[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
-    #[test]
-    #[cfg_attr(miri, ignore)] // asm
-    fn test_asm_ermsb_zeroize_lowalign() {
-        test_b239_lowalign_zeroizer(|ptr: *mut u8, len: usize| unsafe {
-            asm_ermsb_zeroize(ptr, len)
-        })
-    }
-
-    #[cfg(all(target_arch = "x86_64", target_feature = "ermsb"))]
-    #[test]
-    fn test_volatile_write_zeroize_lowalign() {
-        test_b239_lowalign_zeroizer(|ptr: *mut u8, len: usize| unsafe {
-            volatile_write_zeroize(ptr, len)
-        })
+    fn test_lowalign_volatile_write_zeroize() {
+        test_b239_lowalign_zeroizer(|ptr, len| unsafe { volatile_write_zeroize(ptr, len) })
     }
 
     #[test]
     fn test_zeroize_align8_block8() {
         test_b257_align64_block_zeroizer(|ptr, len| unsafe { zeroize_align8_block8(ptr, len) })
-    }
-
-    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
-    #[test]
-    #[cfg_attr(miri, ignore)] // asm
-    fn test_x86_64_simd16_zeroize_align16_block16() {
-        test_b257_align64_block_zeroizer(|ptr, len| unsafe {
-            x86_64_simd16_zeroize_align16_block16(ptr, len)
-        })
-    }
-
-    #[cfg(all(target_arch = "x86_64", target_feature = "sse2"))]
-    #[test]
-    #[cfg_attr(miri, ignore)] // asm
-    fn test_x86_64_simd16_unroll2_zeroize_align16_block16() {
-        test_b257_align64_block_zeroizer(|ptr, len| unsafe {
-            x86_64_simd16_unroll2_zeroize_align16_block16(ptr, len)
-        })
-    }
-
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
-    #[test]
-    #[cfg_attr(miri, ignore)] // asm
-    fn test_x86_64_simd32_zeroize_align32_block32() {
-        test_b257_align64_block_zeroizer(|ptr, len| unsafe {
-            x86_64_simd32_zeroize_align32_block32(ptr, len)
-        })
-    }
-
-    #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
-    #[test]
-    #[cfg_attr(miri, ignore)] // asm
-    fn test_x86_64_simd32_unroll2_zeroize_align32_block32() {
-        test_b257_align64_block_zeroizer(|ptr, len| unsafe {
-            x86_64_simd32_unroll2_zeroize_align32_block32(ptr, len)
-        })
-    }
-
-    #[cfg(all(
-        target_arch = "x86_64",
-        target_feature = "avx512f",
-        feature = "nightly_stdsimd"
-    ))]
-    #[test]
-    #[cfg_attr(miri, ignore)] // asm
-    fn test_x86_64_simd64_zeroize_align64_block64() {
-        test_b257_align64_block_zeroizer(|ptr, len| unsafe {
-            x86_64_simd64_zeroize_align64_block64(ptr, len)
-        })
     }
 }
