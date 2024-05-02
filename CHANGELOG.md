@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.2.1 - 2024-05-01
+## 0.2.2 - 2024-05-02
+### Fixed
+- SSE and AVX zeroizers not properly zeroising the whole memory region under certain alignment
+  conditions.
+- potential memory leak on Windows, where the page size was passed to `VirtualAlloc`, where it
+  expected a zero value.
+
+## 0.2.1 - 2024-05-01 [YANKED]
+
+__Notice__: Yanked because of the issues described under the 0.2.2 version.
+
 ### Fixed
 - __Undefined Behaviour (UB)__ in `SecStackSinglePageAlloc` when not using the
   `nightly_allocator_api` feature.
@@ -21,7 +31,10 @@
   a provenance to only the number of bytes that were requested in the `allocate` call,
   i.e. not rounded up to a multiple of 8.
 
-## 0.2.0 - 2022-04-12
+## 0.2.0 - 2022-04-12 [YANKED]
+
+__Notice__: Yanked because of the issues described under the 0.2.1 and 0.2.2 versions.
+
 ### Added
 - X86_64 SSE2 and AVX simd zeroizers using inline assembly.
 - `nightly_stdsimd` and `nightly_strict_provenance` features. Both don't affect
