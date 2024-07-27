@@ -1,8 +1,6 @@
 //! Helper functions for allocating memory and working with memory pages.
 
 use core::ptr::NonNull;
-#[cfg(feature = "std")]
-use thiserror::Error;
 
 /// An single allocated page of memory.
 pub struct Page {

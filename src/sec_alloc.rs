@@ -125,7 +125,7 @@ impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
 impl<Z: MemZeroizer> Drop for SecStackSinglePageAlloc<Z> {
     // panic in drop leads to abort, so we better just abort
     // however, abort is only stably available with `std` (not `core`)
-    #[cfg(featue = "std")]
+    #[cfg(feature = "std")]
     fn drop(&mut self) {
         // check for leaks
         if self.bytes.get() != 0 {
@@ -143,7 +143,7 @@ impl<Z: MemZeroizer> Drop for SecStackSinglePageAlloc<Z> {
         }
     }
 
-    #[cfg(not(featue = "std"))]
+    #[cfg(not(feature = "std"))]
     fn drop(&mut self) {
         // check for leaks
         debug_assert!(self.bytes.get() == 0);
