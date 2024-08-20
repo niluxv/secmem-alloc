@@ -7,24 +7,14 @@ use mirai_annotations::debug_checked_precondition;
 #[cfg(not(feature = "nightly_strict_provenance"))]
 use sptr::Strict;
 
-#[cfg(not(feature = "nightly_core_intrinsics"))]
-pub(crate) fn likely(b: bool) -> bool {
-    b
-}
-
-#[cfg(not(feature = "nightly_core_intrinsics"))]
 pub(crate) fn unlikely(b: bool) -> bool {
-    b
-}
-
-#[cfg(feature = "nightly_core_intrinsics")]
-pub(crate) fn likely(b: bool) -> bool {
-    core::intrinsics::likely(b)
-}
-
-#[cfg(feature = "nightly_core_intrinsics")]
-pub(crate) fn unlikely(b: bool) -> bool {
-    core::intrinsics::unlikely(b)
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "nightly_core_intrinsics")] {
+            core::intrinsics::unlikely(b)
+        } else {
+            b
+        }
+    }
 }
 
 /// Stable version of nightly only `NonNull::<[T]>::as_mut_ptr` from std.
@@ -62,15 +52,6 @@ pub(crate) unsafe fn align_up_ptr_mut(ptr: *mut u8, align: usize) -> *mut u8 {
 /// For the result to be correct, `align` must be a power of two (2).
 /// Might panic if `align` is not a power of two.
 pub(crate) fn is_aligned_ptr(ptr: *const u8, align: usize) -> bool {
-    debug_checked_precondition!(align.is_power_of_two());
-    ptr.addr() % align == 0
-}
-
-/// Returns `true` iff `ptr` is `align` byte aligned.
-///
-/// For the result to be correct, `align` must be a power of two (2).
-/// Might panic if `align` is not a power of two.
-pub(crate) fn is_aligned_ptr_mut(ptr: *mut u8, align: usize) -> bool {
     debug_checked_precondition!(align.is_power_of_two());
     ptr.addr() % align == 0
 }

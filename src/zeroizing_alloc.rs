@@ -13,7 +13,7 @@ use crate::macros::{
     debug_handleallocerror_precondition, debug_handleallocerror_precondition_valid_layout,
     precondition_memory_range,
 };
-use crate::zeroize::{DefaultMemZeroizer, DefaultMemZeroizerConstructor, MemZeroizer};
+use crate::zeroize::zeroize_mem;
 use alloc::alloc::handle_alloc_error;
 use allocator_api2::alloc::{AllocError, Allocator};
 use core::alloc::{GlobalAlloc, Layout};
@@ -27,48 +27,20 @@ use sptr::Strict;
 /// If debug assertions are enabled, *some* of the safety requirement for using
 /// an allocator are checked.
 #[derive(Debug, Default)]
-pub struct ZeroizeAlloc<BackendAlloc, Z: MemZeroizer = DefaultMemZeroizer> {
+pub struct ZeroizeAlloc<A> {
     /// Allocator used for the actual allocations.
-    backend_alloc: BackendAlloc,
-    /// Zeroization stategy for use on deallocation.
-    zeroizer: Z,
+    backend_alloc: A,
 }
 
 impl<A> ZeroizeAlloc<A> {
     /// Create a zeroizing allocator using `backend_alloc` for allocations and
     /// `zeroizer` to zeroize memory upon deallocation.
     pub const fn new(backend_alloc: A) -> Self {
-        Self {
-            backend_alloc,
-            zeroizer: DefaultMemZeroizerConstructor,
-        }
+        Self { backend_alloc }
     }
 }
 
-impl<A, Z: MemZeroizer> ZeroizeAlloc<A, Z> {
-    /// Create a zeroizing allocator using `backend_alloc` for allocations and
-    /// `zeroizer` to zeroize memory upon deallocation.
-    pub fn with_zeroizer(backend_alloc: A, zeroizer: Z) -> Self {
-        Self {
-            backend_alloc,
-            zeroizer,
-        }
-    }
-}
-
-impl<A, Z: MemZeroizer + Default> ZeroizeAlloc<A, Z> {
-    /// Create a zeroizing allocator using `backend_alloc` for allocations and
-    /// `zeroizer` to zeroize memory upon deallocation.
-    pub fn with_default_zeroizer(backend_alloc: A) -> Self {
-        Self::with_zeroizer(backend_alloc, Z::default())
-    }
-}
-
-unsafe impl<B, Z> GlobalAlloc for ZeroizeAlloc<B, Z>
-where
-    B: GlobalAlloc,
-    Z: MemZeroizer,
-{
+unsafe impl<A: GlobalAlloc> GlobalAlloc for ZeroizeAlloc<A> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         // debug assertions
         // SAFETY: the allocator is not allowed to unwind (panic!)
@@ -106,7 +78,7 @@ where
         // and not yet deallocated SAFETY: `ptr` is at least `layout.align()`
         // byte aligned and this is a power of two
         unsafe {
-            self.zeroizer.zeroize_mem(ptr, layout.size());
+            zeroize_mem(ptr, layout.size());
         }
         // SAFETY: caller must uphold the safety contract of `GlobalAlloc::dealloc`.
         unsafe { self.backend_alloc.dealloc(ptr, layout) }
@@ -133,11 +105,7 @@ where
     // arbitrary backend allocator.
 }
 
-unsafe impl<B, Z> Allocator for ZeroizeAlloc<B, Z>
-where
-    B: Allocator,
-    Z: MemZeroizer,
-{
+unsafe impl<A: Allocator> Allocator for ZeroizeAlloc<A> {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         // debug assertions
         // check that `layout` is a valid layout
@@ -165,7 +133,7 @@ where
         // SAFETY: `ptr` is at least `layout.align()` byte aligned and this is a power
         // of two
         unsafe {
-            self.zeroizer.zeroize_mem(ptr.as_ptr(), layout.size());
+            zeroize_mem(ptr.as_ptr(), layout.size());
         }
         // SAFETY: caller must uphold the safety contract of `Allocator::deallocate`
         unsafe { self.backend_alloc.deallocate(ptr, layout) }
@@ -183,12 +151,11 @@ where
 mod tests {
     use super::*;
     use crate::allocator_api::{Box, Vec};
-    use crate::zeroize::TestZeroizer;
     use std::alloc::System;
 
     #[test]
     fn box_allocation_8b() {
-        let allocator = ZeroizeAlloc::with_zeroizer(System, TestZeroizer);
+        let allocator = ZeroizeAlloc::new(System);
         let _heap_mem = Box::new_in([1u8; 8], &allocator);
         // drop `_heap_mem`
         // drop `allocator`
@@ -196,7 +163,7 @@ mod tests {
 
     #[test]
     fn box_allocation_9b() {
-        let allocator = ZeroizeAlloc::with_zeroizer(System, TestZeroizer);
+        let allocator = ZeroizeAlloc::new(System);
         let _heap_mem = Box::new_in([1u8; 9], &allocator);
         // drop `_heap_mem`
         // drop `allocator`
@@ -204,7 +171,7 @@ mod tests {
 
     #[test]
     fn box_allocation_zst() {
-        let allocator = ZeroizeAlloc::with_zeroizer(System, TestZeroizer);
+        let allocator = ZeroizeAlloc::new(System);
         let _heap_mem = Box::new_in([(); 8], &allocator);
         // drop `_heap_mem`
         // drop `allocator`
@@ -212,7 +179,7 @@ mod tests {
 
     #[test]
     fn vec_allocation_9b() {
-        let allocator = ZeroizeAlloc::with_zeroizer(System, TestZeroizer);
+        let allocator = ZeroizeAlloc::new(System);
         let _heap_mem = Vec::<u8, _>::with_capacity_in(9, &allocator);
         // drop `_heap_mem`
         // drop `allocator`
@@ -220,7 +187,7 @@ mod tests {
 
     #[test]
     fn vec_allocation_grow_repeated() {
-        let allocator = ZeroizeAlloc::with_zeroizer(System, TestZeroizer);
+        let allocator = ZeroizeAlloc::new(System);
 
         let mut heap_mem = Vec::<u8, _>::with_capacity_in(9, &allocator);
         heap_mem.reserve(1);
@@ -231,7 +198,7 @@ mod tests {
 
     #[test]
     fn vec_allocation_shrink() {
-        let allocator = ZeroizeAlloc::with_zeroizer(System, TestZeroizer);
+        let allocator = ZeroizeAlloc::new(System);
 
         let mut heap_mem = Vec::<u8, _>::with_capacity_in(9, &allocator);
         heap_mem.push(255);
@@ -242,7 +209,7 @@ mod tests {
 
     #[test]
     fn allocate_zeroed() {
-        let allocator = ZeroizeAlloc::<_, TestZeroizer>::with_default_zeroizer(System);
+        let allocator = ZeroizeAlloc::new(System);
 
         let layout = Layout::new::<[u8; 16]>();
         let ptr = allocator

@@ -25,7 +25,7 @@ use crate::util::{
     align_up_ptr_mut, align_up_usize, is_aligned_ptr, large_offset_from, nonnull_as_mut_ptr,
     unlikely,
 };
-use crate::zeroize::{DefaultMemZeroizer, MemZeroizer};
+use crate::zeroize::zeroize_mem;
 use allocator_api2::alloc::{AllocError, Allocator};
 use core::alloc::Layout;
 use core::cell::Cell;
@@ -73,9 +73,7 @@ use sptr::Strict;
 /// like manner, that is, always only deallocate, shrink or grow the
 /// last created allocation, and request at most 8 byte alignment for all but
 /// the first allocation.
-pub struct SecStackSinglePageAlloc<Z: MemZeroizer = DefaultMemZeroizer> {
-    /// Zeroizer used on deallocation.
-    zeroizer: Z,
+pub struct SecStackSinglePageAlloc {
     /// The number of bytes currently allocated.
     bytes: Cell<usize>,
     /// Page of allocated mlocked memory.
@@ -92,7 +90,7 @@ pub struct SecStackSinglePageAlloc<Z: MemZeroizer = DefaultMemZeroizer> {
     stack_offset: Cell<usize>,
 }
 
-impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
+impl SecStackSinglePageAlloc {
     #[cfg(test)]
     /// Panic on inconsistent internal state.
     fn consistency_check(&self) {
@@ -122,7 +120,7 @@ impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
 }
 
 #[cfg(debug_assertions)]
-impl<Z: MemZeroizer> Drop for SecStackSinglePageAlloc<Z> {
+impl Drop for SecStackSinglePageAlloc {
     // panic in drop leads to abort, so we better just abort
     // however, abort is only stably available with `std` (not `core`)
     #[cfg(feature = "std")]
@@ -159,35 +157,7 @@ impl<Z: MemZeroizer> Drop for SecStackSinglePageAlloc<Z> {
 }
 
 #[cfg(any(unix, windows))]
-impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
-    /// Create a new `SecStackSinglePageAlloc` allocator. This allocates one
-    /// page of memory to be used by the allocator. This page is only
-    /// released once the allocator is dropped.
-    ///
-    /// # Errors
-    /// The function returns an `PageAllocError` if no page could be allocated
-    /// by the system or if the page could not be locked. The second can be
-    /// caused either by memory starvation of the system or the process
-    /// exceeding the amount of memory it is allowed to lock.
-    ///
-    /// For unprivileged processes amount of memory that locked is very limited
-    /// on Linux. A process with `CAP_SYS_RESOURCE` can change the `mlock`
-    /// limit using `setrlimit` from libc.
-    pub fn new_with_zeroizer(zeroizer: Z) -> Result<Self, mem::PageAllocError> {
-        let page = mem::Page::alloc_new_lock()?;
-        //let stack_ptr = page.page_ptr_nonnull();
-        Ok(Self {
-            zeroizer,
-            bytes: Cell::new(0),
-            page,
-            //stack_ptr,
-            stack_offset: Cell::new(0),
-        })
-    }
-}
-
-#[cfg(any(unix, windows))]
-impl<Z: MemZeroizer + Default> SecStackSinglePageAlloc<Z> {
+impl SecStackSinglePageAlloc {
     /// Create a new `SecStackSinglePageAlloc` allocator. This allocates one
     /// page of memory to be used by the allocator. This page is only
     /// released once the allocator is dropped.
@@ -202,11 +172,18 @@ impl<Z: MemZeroizer + Default> SecStackSinglePageAlloc<Z> {
     /// on Linux. A process with `CAP_SYS_RESOURCE` can change the `mlock`
     /// limit using `setrlimit` from libc.
     pub fn new() -> Result<Self, mem::PageAllocError> {
-        Self::new_with_zeroizer(Z::default())
+        let page = mem::Page::alloc_new_lock()?;
+        //let stack_ptr = page.page_ptr_nonnull();
+        Ok(Self {
+            bytes: Cell::new(0),
+            page,
+            //stack_ptr,
+            stack_offset: Cell::new(0),
+        })
     }
 }
 
-impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
+impl SecStackSinglePageAlloc {
     /// Returns `true` iff `ptr` points to the final allocation on the memory
     /// page of `self`.
     ///
@@ -332,7 +309,7 @@ impl<Z: MemZeroizer> SecStackSinglePageAlloc<Z> {
     }
 }
 
-unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
+unsafe impl Allocator for SecStackSinglePageAlloc {
     // The backing memory is zeroed on deallocation and `mmap` initialises the
     // memory with zeros so every allocation has zeroed memory.
     // We always return a multiple of 8 bytes and a minimal alignment of 8. This
@@ -476,11 +453,8 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
         // SAFETY: `ptr` is valid for writes of `rounded_req_size` bytes since it was
         // previously successfully allocated (by the safety contract for this
         // function) and not yet deallocated
-        // SAFETY: `ptr` is at least 8 bytes aligned and `rounded_req_size` is a
-        // multiple of 8
         unsafe {
-            self.zeroizer
-                .zeroize_mem_blocks::<3, 3>(ptr, rounded_req_size);
+            zeroize_mem(ptr, rounded_req_size);
         }
         // `self.bytes - rounded_req_size` doesn't overflow since the memory has
         // previously been allocated
@@ -571,11 +545,8 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
             // new_rounded_size` bytes since it is only `new_rounded_size` past
             // `ptr`, which was successfully allocated (by the safety contract
             // for this function) and not yet deallocated
-            // SAFETY: `new_alloc_end` is at least 8 byte aligned, `size_decrease` is a
-            // multiple of 8
             unsafe {
-                self.zeroizer
-                    .zeroize_mem_blocks::<3, 3>(new_alloc_end, size_decrease);
+                zeroize_mem(new_alloc_end, size_decrease);
             }
             // decrement the number of allocated bytes by the allocation size reduction
             self.bytes.set(self.bytes.get() - size_decrease);
@@ -707,7 +678,6 @@ unsafe impl<Z: MemZeroizer> Allocator for SecStackSinglePageAlloc<Z> {
 mod tests {
     use super::*;
     use crate::allocator_api::{Box, Vec};
-    use crate::zeroize::TestZeroizer;
     use std::mem::drop;
 
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -720,15 +690,13 @@ mod tests {
 
     #[test]
     fn create_consistency() {
-        let allocator =
-            SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
     }
 
     #[test]
     fn box_allocation_8b() {
-        let allocator =
-            SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
         {
             let _heap_mem = Box::new_in([1u8; 8], &allocator);
@@ -740,8 +708,7 @@ mod tests {
 
     #[test]
     fn box_allocation_9b() {
-        let allocator =
-            SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
         {
             let _heap_mem = Box::new_in([1u8; 9], &allocator);
@@ -753,8 +720,7 @@ mod tests {
 
     #[test]
     fn box_allocation_zst() {
-        let allocator =
-            SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
         {
             let _heap_mem = Box::new_in([(); 8], &allocator);
@@ -766,8 +732,7 @@ mod tests {
 
     #[test]
     fn multiple_box_allocations() {
-        let allocator =
-            SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
         {
             let _heap_mem = Box::new_in([1u8; 9], &allocator);
@@ -789,8 +754,7 @@ mod tests {
 
     #[test]
     fn multiple_box_allocations_high_align() {
-        let allocator =
-            SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
         {
             let _heap_mem = Box::new_in([Align16(1); 5], &allocator);
@@ -812,8 +776,7 @@ mod tests {
 
     #[test]
     fn multiple_box_allocations_mixed_align() {
-        let allocator =
-            SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
         {
             let _heap_mem = Box::new_in([1u8; 17], &allocator);
@@ -835,8 +798,7 @@ mod tests {
 
     #[test]
     fn many_box_allocations_mixed_align_nonstacked_drop() {
-        let allocator =
-            SecStackSinglePageAlloc::<TestZeroizer>::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
         {
             let heap_mem1 = Box::new_in([Align16(1); 11], &allocator);
@@ -866,9 +828,7 @@ mod tests {
 
     #[test]
     fn vec_allocation_9b() {
-        type A = SecStackSinglePageAlloc<TestZeroizer>;
-
-        let allocator: A = SecStackSinglePageAlloc::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
         {
             let _heap_mem = Vec::<u8, _>::with_capacity_in(9, &allocator);
@@ -880,9 +840,7 @@ mod tests {
 
     #[test]
     fn vec_allocation_grow_repeated() {
-        type A = SecStackSinglePageAlloc<TestZeroizer>;
-
-        let allocator: A = SecStackSinglePageAlloc::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
         {
             let mut heap_mem = Vec::<u8, _>::with_capacity_in(9, &allocator);
@@ -898,9 +856,7 @@ mod tests {
 
     #[test]
     fn vec_allocation_nonfinal_grow() {
-        type A = SecStackSinglePageAlloc<TestZeroizer>;
-
-        let allocator: A = SecStackSinglePageAlloc::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
         {
             let mut heap_mem = Vec::<u8, _>::with_capacity_in(9, &allocator);
@@ -921,9 +877,7 @@ mod tests {
 
     #[test]
     fn vec_allocation_shrink() {
-        type A = SecStackSinglePageAlloc<TestZeroizer>;
-
-        let allocator: A = SecStackSinglePageAlloc::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
         {
             let mut heap_mem = Vec::<u8, _>::with_capacity_in(9, &allocator);
@@ -939,9 +893,7 @@ mod tests {
 
     #[test]
     fn vec_allocation_nonfinal_shrink() {
-        type A = SecStackSinglePageAlloc<TestZeroizer>;
-
-        let allocator: A = SecStackSinglePageAlloc::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
         allocator.consistency_check();
         {
             let mut heap_mem = Vec::<u8, _>::with_capacity_in(9, &allocator);
@@ -962,8 +914,7 @@ mod tests {
 
     #[test]
     fn allocate_zeroed() {
-        type A = SecStackSinglePageAlloc<TestZeroizer>;
-        let allocator: A = SecStackSinglePageAlloc::new().expect("allocator creation failed");
+        let allocator = SecStackSinglePageAlloc::new().expect("allocator creation failed");
 
         let layout = Layout::new::<[u8; 16]>();
         let ptr = allocator

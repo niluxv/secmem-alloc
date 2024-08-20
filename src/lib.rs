@@ -124,9 +124,11 @@ pub mod allocator_api {
 mod internals;
 mod macros;
 mod util;
+mod zeroize;
+
+pub use zeroize::zeroize_mem;
 
 pub mod sec_alloc;
-pub mod zeroize;
 pub mod zeroizing_alloc;
 
 #[cfg(test)]
