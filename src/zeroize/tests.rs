@@ -2,7 +2,7 @@ use super::*;
 
 fn test_b127_zeroizer(z: unsafe fn(*mut u8, usize)) {
     let mut array: [u8; 127] = [0xAF; 127];
-    let ptr: *mut u8 = (&mut array[..]).as_mut_ptr();
+    let ptr: *mut u8 = array[..].as_mut_ptr();
     unsafe {
         z(ptr, 127);
     }
@@ -16,7 +16,7 @@ fn test_b239_lowalign_zeroizer(z: unsafe fn(*mut u8, usize)) {
     // zeroize everything but the first byte, so the pointer to the memory will have
     // an alignment of 1 byte
 
-    let array_ptr: *mut u64 = (&mut array[..]).as_mut_ptr();
+    let array_ptr: *mut u64 = array[..].as_mut_ptr();
     // 1 byte aligned; SAFETY: resulting `ptr` still pointing in array
     let ptr: *mut u8 = unsafe { array_ptr.cast::<u8>().add(1) };
     // this should still be safe

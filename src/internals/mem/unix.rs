@@ -93,8 +93,8 @@ impl Page {
     /// The function returns an `PageAllocError` if the `mmap` or `mlock` call
     /// fails.
     pub fn alloc_new_lock() -> Result<Self, PageAllocError> {
-        let mut page = Self::alloc_new_noreserve().map_err(|e| PageAllocError::Mmap(e))?;
-        page.mlock().map_err(|e| PageAllocError::Mlock(e))?;
+        let mut page = Self::alloc_new_noreserve().map_err(PageAllocError::Mmap)?;
+        page.mlock().map_err(PageAllocError::Mlock)?;
         Ok(page)
     }
 }
