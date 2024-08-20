@@ -33,6 +33,7 @@ fn test_b127_nightly_zeroizer() {
     test_b127_zeroizer(nightly::zeroize_mem);
 }
 
+#[cfg_attr(miri, ignore)]
 #[test]
 fn test_b127_asm_barier_zeroizer() {
     test_b127_zeroizer(asm_barier::zeroize_mem);
@@ -49,6 +50,7 @@ fn test_b239_lowalign_volatile_memset_zeroizer() {
     test_b239_lowalign_zeroizer(nightly::zeroize_mem);
 }
 
+#[cfg_attr(miri, ignore)]
 #[test]
 fn test_b239_lowalign_asm_barier_zeroizer() {
     test_b239_lowalign_zeroizer(asm_barier::zeroize_mem);
