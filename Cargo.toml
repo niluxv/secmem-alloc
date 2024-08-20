@@ -21,15 +21,12 @@ default = ["std"]
 std = ["dep:thiserror", "allocator-api2/std"]
 nightly_allocator_api = ["allocator-api2/nightly"]
 nightly_core_intrinsics = []
-# even though stabilised, still necessary for avx512
-nightly_stdsimd = []
 # enables strict provenance lints and uses strict provenance methods from std
 # instead of those from `sptr` (for inherent methods only)
 nightly_strict_provenance = []
 nightly = [
     "nightly_allocator_api",
     "nightly_core_intrinsics",
-    "nightly_stdsimd",
     "nightly_strict_provenance",
 ]
 # required features to run tests; additional features enable more tests
@@ -46,7 +43,7 @@ thiserror = { version = "1.0", optional = true }
 rustix = { version = "0.38", features = ["mm", "param"] }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.56.0", features = ["Win32_System_SystemInformation", "Win32_System_Memory"] }
+windows = { version = "0.58", features = ["Win32_System_SystemInformation", "Win32_System_Memory"] }
 
 [profile.release]
 codegen-units = 1

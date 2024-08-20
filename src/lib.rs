@@ -2,8 +2,6 @@
 #![cfg_attr(feature = "nightly_allocator_api", feature(allocator_api))]
 // for `volatile_memset`
 #![cfg_attr(feature = "nightly_core_intrinsics", feature(core_intrinsics))]
-// https://github.com/rust-lang/rust/issues/111137
-#![cfg_attr(feature = "nightly_stdsimd", feature(stdarch_x86_avx512))]
 // https://github.com/rust-lang/rust/issues/95228
 #![cfg_attr(feature = "nightly_strict_provenance", feature(strict_provenance))]
 #![cfg_attr(
@@ -93,12 +91,9 @@
 //!   nightly compiler.
 //! - `nightly_core_intrinsics` (requires nightly): Use the intrinsics from the
 //!   standard library (actually the `core` crate), gated behind the
-//!   nightly-only feature `core_intrinsics`. This enables the extremely fast
-//!   `VolatileMemsetZeroizer` zeroizer, and various other small optimisations.
+//!   nightly-only feature `core_intrinsics`. This allows for a slightly faster
+//!   [`zeroize_mem`] implementation, and various other small optimisations.
 //!   This feature requires a nightly compiler.
-//! - `nightly_stdsimd` (requires nightly): Required for avx512 simd API in the
-//!   standard libary, but currently unused. This feature requires a nightly
-//!   compiler.
 //! - `nightly_strict_provenance` (requires nightly): Enable strict provenance
 //!   lints and (mostly) use strict provenance API provided by the standard
 //!   library instead of the one from `sptr`. (Will still depend on and in a few
