@@ -48,15 +48,5 @@ rustix = { version = "0.38", features = ["mm", "param"] }
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.56.0", features = ["Win32_System_SystemInformation", "Win32_System_Memory"] }
 
-[dev-dependencies]
-criterion = "0.5"
-
-[[bench]]
-name = "bench_zeroizers"
-harness = false
-
 [profile.release]
-codegen-units = 1
-
-[profile.bench]
 codegen-units = 1

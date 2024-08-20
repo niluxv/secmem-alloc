@@ -34,9 +34,6 @@ clippy:
 
 full-check: check test test-memory-sanatize doc clippy fmt-check miri
 
-bench:
-    env RUSTFLAGS="-C target-cpu=native" cargo +nightly criterion --all-features
-
 code-cov:
     cargo +nightly tarpaulin --ignore-tests --all-features --out Html
 
