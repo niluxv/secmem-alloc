@@ -20,7 +20,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
     permissions:
+        # to create issues
         issues: write
-        issues-reason: to create issues
+        # to create check
         checks: write
-        checks-reason: to create check
