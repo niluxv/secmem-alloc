@@ -9,14 +9,13 @@ pub fn page_size() -> usize {
     4096
 }
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum PageAllocError {
-    #[cfg_attr(feature = "std", error("trying to create invalid layout"))]
+    #[error("trying to create invalid layout")]
     Layout(std::alloc::LayoutError),
-    #[cfg_attr(feature = "std", error("could not allocate memory"))]
+    #[error("could not allocate memory")]
     Alloc,
-    #[cfg_attr(feature = "std", error("could not lock memory"))]
+    #[error("could not lock memory")]
     Lock,
 }
 

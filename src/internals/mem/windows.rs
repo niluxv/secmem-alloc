@@ -20,12 +20,11 @@ pub fn page_size() -> usize {
     }
 }
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum PageAllocError {
-    #[cfg_attr(feature = "std", error("could not map a memory page"))]
+    #[error("could not map a memory page")]
     VirtualAlloc,
-    #[cfg_attr(feature = "std", error("could not lock memory page: {0}"))]
+    #[error("could not lock memory page: {0}")]
     VirtualLock(windows::core::Error),
 }
 

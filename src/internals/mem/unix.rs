@@ -10,12 +10,11 @@ pub fn page_size() -> usize {
     rustix::param::page_size()
 }
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum PageAllocError {
-    #[cfg_attr(feature = "std", error("could not map a memory page: {0}"))]
+    #[error("could not map a memory page: {0}")]
     Mmap(rustix::io::Errno),
-    #[cfg_attr(feature = "std", error("could not lock memory page: {0}"))]
+    #[error("could not lock memory page: {0}")]
     Mlock(rustix::io::Errno),
 }
 

@@ -18,7 +18,7 @@ all-features = true
 
 [features]
 default = ["std"]
-std = ["dep:thiserror", "allocator-api2/std"]
+std = ["allocator-api2/std", "thiserror/std"]
 nightly_allocator_api = ["allocator-api2/nightly"]
 nightly_core_intrinsics = []
 # enables strict provenance lints and uses strict provenance methods from std
@@ -37,7 +37,7 @@ allocator-api2 = { version = "0.2", default-features = false }
 cfg-if = "1.0"
 mirai-annotations = "1.12"
 sptr = "0.3"
-thiserror = { version = "1.0", optional = true }
+thiserror = { version = "2", default-features = false }
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "0.38", features = ["mm", "param"] }
