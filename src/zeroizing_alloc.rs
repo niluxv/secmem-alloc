@@ -18,8 +18,6 @@ use alloc::alloc::handle_alloc_error;
 use allocator_api2::alloc::{AllocError, Allocator};
 use core::alloc::{GlobalAlloc, Layout};
 use core::ptr::NonNull;
-#[cfg(not(feature = "nightly_strict_provenance"))]
-use sptr::Strict;
 
 /// Wrapper around an allocator which zeroizes memory on deallocation. See the
 /// module level documentation.

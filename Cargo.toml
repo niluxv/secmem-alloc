@@ -21,13 +21,9 @@ default = ["std"]
 std = ["allocator-api2/std", "thiserror/std"]
 nightly_allocator_api = ["allocator-api2/nightly"]
 nightly_core_intrinsics = []
-# enables strict provenance lints and uses strict provenance methods from std
-# instead of those from `sptr` (for inherent methods only)
-nightly_strict_provenance = []
 nightly = [
     "nightly_allocator_api",
     "nightly_core_intrinsics",
-    "nightly_strict_provenance",
 ]
 # required features to run tests; additional features enable more tests
 dev = ["std"]
@@ -36,7 +32,6 @@ dev = ["std"]
 allocator-api2 = { version = "0.2", default-features = false }
 cfg-if = "1.0"
 mirai-annotations = "1.12"
-sptr = "0.3"
 thiserror = { version = "2", default-features = false }
 
 [target.'cfg(unix)'.dependencies]

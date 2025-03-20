@@ -31,8 +31,6 @@ use core::alloc::Layout;
 use core::cell::Cell;
 use core::ptr::{self, NonNull};
 use mirai_annotations::debug_checked_precondition;
-#[cfg(not(feature = "nightly_strict_provenance"))]
-use sptr::Strict;
 
 /// Memory allocator for confidential memory. See the module level
 /// documentation.
@@ -221,7 +219,7 @@ impl SecStackSinglePageAlloc {
         debug_checked_precondition!(align.is_power_of_two());
 
         // SAFETY: creating a pointer is safe, using it not; `dangling` is non-null
-        let dangling: *mut u8 = sptr::invalid_mut(align);
+        let dangling: *mut u8 = ptr::without_provenance_mut(align);
         let zerosized_slice: *mut [u8] = ptr::slice_from_raw_parts_mut(dangling, 0);
         // SAFETY: zerosized_slice has a non-null pointer part since `align` > 0
         unsafe { NonNull::new_unchecked(zerosized_slice) }

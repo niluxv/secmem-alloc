@@ -4,8 +4,6 @@
 
 use core::ptr::NonNull;
 use mirai_annotations::debug_checked_precondition;
-#[cfg(not(feature = "nightly_strict_provenance"))]
-use sptr::Strict;
 
 pub(crate) fn unlikely(b: bool) -> bool {
     cfg_if::cfg_if! {

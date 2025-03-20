@@ -31,7 +31,7 @@ macro_rules! precondition_memory_range {
     ($ptr:expr, $len:expr) => {
         mirai_annotations::precondition!(!($ptr.is_null()), "null pointer is never valid");
         mirai_annotations::precondition!(
-            sptr::Strict::addr($ptr).checked_add($len).is_some(),
+            $ptr.addr().checked_add($len).is_some(),
             "memory range wraps the address space"
         );
     };

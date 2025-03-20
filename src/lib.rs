@@ -2,18 +2,15 @@
 #![cfg_attr(feature = "nightly_allocator_api", feature(allocator_api))]
 // for `volatile_memset`
 #![cfg_attr(feature = "nightly_core_intrinsics", feature(core_intrinsics))]
-// https://github.com/rust-lang/rust/issues/95228
-#![cfg_attr(feature = "nightly_strict_provenance", feature(strict_provenance))]
-#![cfg_attr(
-    feature = "nightly_strict_provenance",
-    deny(fuzzy_provenance_casts, lossy_provenance_casts)
-)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(rust_2018_compatibility, unsafe_op_in_unsafe_fn)]
 #![deny(future_incompatible, rust_2018_idioms)]
 #![warn(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-// FIXME: disable when strict provenance is stabilised
-#![allow(unstable_name_collisions)]
+// on nightly, enable some unstable lints
+#![cfg_attr(
+    feature = "nightly",
+    deny(fuzzy_provenance_casts, lossy_provenance_casts)
+)]
 //! `secmem-alloc` is a crate designed allocate private/secret memory. It is
 //! intended to be used for storing cryptographic secrets in memory. This crate
 //! provides custom allocators using various techniques to improve secrecy of
@@ -94,10 +91,6 @@
 //!   nightly-only feature `core_intrinsics`. This allows for a slightly faster
 //!   [`zeroize_mem`] implementation, and various other small optimisations.
 //!   This feature requires a nightly compiler.
-//! - `nightly_strict_provenance` (requires nightly): Enable strict provenance
-//!   lints and (mostly) use strict provenance API provided by the standard
-//!   library instead of the one from `sptr`. (Will still depend on and in a few
-//!   places even use `sptr`.)
 //! - `nightly` (requires nightly): Enable all nightly-only features (i.e. the
 //!   above two). Enabling this feature is highly recommended when a nightly
 //!   compiler is available. This feature requires a nightly compiler.
