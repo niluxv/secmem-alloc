@@ -40,7 +40,7 @@ sptr = "0.3"
 thiserror = { version = "2", default-features = false }
 
 [target.'cfg(unix)'.dependencies]
-rustix = { version = "0.38", features = ["mm", "param"] }
+rustix = { version = "1", features = ["mm", "param"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = ["Win32_System_SystemInformation", "Win32_System_Memory"] }
