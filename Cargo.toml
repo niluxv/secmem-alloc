@@ -2,7 +2,6 @@
 name = "secmem-alloc"
 version = "0.3.0"
 authors = ["niluxv <niluxv.opensource.C-h2ty6xl@yandex.com>"]
-edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Custom allocators for secret memory"
 readme = "README.md"
@@ -10,6 +9,8 @@ categories = ["no-std", "memory-management", "cryptography"]
 keywords = ["allocator", "secure", "memory"]
 repository = "https://github.com/niluxv/secmem-alloc"
 include = ["src/**/*", "tests", "benches", "COPYING", "LICENSE.*", "README.md", "build.rs"]
+edition = "2024"
+rust-version = "1.85"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -42,3 +43,6 @@ windows = { version = "0.61.1", features = ["Win32_System_SystemInformation", "W
 
 [profile.release]
 codegen-units = 1
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(mirai)'] }
