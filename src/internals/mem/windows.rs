@@ -41,8 +41,8 @@ impl Page {
     /// fails.
     fn alloc_new() -> Result<Self, ()> {
         use windows::Win32::System::Memory::{
-            VirtualAlloc, MEM_COMMIT, MEM_RESERVE, PAGE_PROTECTION_FLAGS, PAGE_READWRITE,
-            VIRTUAL_ALLOCATION_TYPE,
+            MEM_COMMIT, MEM_RESERVE, PAGE_PROTECTION_FLAGS, PAGE_READWRITE,
+            VIRTUAL_ALLOCATION_TYPE, VirtualAlloc,
         };
 
         let page_size = page_size();
@@ -98,7 +98,7 @@ impl Page {
 
 impl Drop for Page {
     fn drop(&mut self) {
-        use windows::Win32::System::Memory::{VirtualFree, MEM_RELEASE};
+        use windows::Win32::System::Memory::{MEM_RELEASE, VirtualFree};
 
         // SAFETY: we allocated/mapped this page in the constructor so it is safe to
         // unmap now
