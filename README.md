@@ -1,4 +1,4 @@
-# secmem-alloc ![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue) [![secmem-alloc on crates.io](https://img.shields.io/crates/v/secmem-alloc)](https://crates.io/crates/secmem-alloc) [![secmem-alloc on docs.rs](https://docs.rs/secmem-alloc/badge.svg)](https://docs.rs/secmem-alloc) [![Source Code Repository](https://img.shields.io/badge/Code-On%20GitHub-blue?logo=GitHub)](https://github.com/niluxv/secmem-alloc)
+# secmem-alloc ![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue) [![secmem-alloc on crates.io](https://img.shields.io/crates/v/secmem-alloc)](https://crates.io/crates/secmem-alloc) [![secmem-alloc on docs.rs](https://docs.rs/secmem-alloc/badge.svg)](https://docs.rs/secmem-alloc) [![Source Code Repository](https://img.shields.io/badge/Code-On%20GitHub-blue?logo=GitHub)](https://github.com/niluxv/secmem-alloc) ![Rust Version: 1.85.0](https://img.shields.io/badge/rustc-1.85.0-orange.svg)
 
 `secmem-alloc` is a crate designed allocate private/secret memory. It is
 intended to be used for storing cryptographic secrets in memory. This crate
@@ -81,10 +81,6 @@ fn main() {
   nightly-only feature `core_intrinsics`. This allows for a slightly faster
   [`zeroize_mem`][__link0] implementation, and various other small optimisations.
   This feature requires a nightly compiler.
-* `nightly_strict_provenance` (requires nightly): Enable strict provenance
-  lints and (mostly) use strict provenance API provided by the standard
-  library instead of the one from `sptr`. (Will still depend on and in a few
-  places even use `sptr`.)
 * `nightly` (requires nightly): Enable all nightly-only features (i.e. the
   above two). Enabling this feature is highly recommended when a nightly
   compiler is available. This feature requires a nightly compiler.
@@ -92,6 +88,14 @@ fn main() {
   run the test-suite, and should only be enabled for that purpose. This
   feature currently requires a nightly compiler.
 
+## MSRV Policy
 
- [__cargo_doc2readme_dependencies_info]: ggGkYW0BYXSEG_W_Gn_kaocAGwCcVPfenh7eGy6gYLEwyIe4G6-xw_FwcbpjYXKEGwpctm3jjscgG9Py931L8tN6G-R2axSwc13MG7rHI1TcUHIaYWSBg2xzZWNtZW0tYWxsb2NlMC4zLjBsc2VjbWVtX2FsbG9j
- [__link0]: https://docs.rs/secmem-alloc/0.3.0/secmem_alloc/?search=zeroize_mem
+Since this crate still depends on several nightly features for optimal
+functioning, the MSRV is expected to track the latest stable relatively
+closely. Therefore, we might bump the MSRV in patch version bumps. This
+shouldn’t be an issue given the new MSRV aware dependency resolver in
+cargo. This policy might change as more unstable features get stabilised.
+
+
+ [__cargo_doc2readme_dependencies_info]: ggGkYW0BYXSEG_W_Gn_kaocAGwCcVPfenh7eGy6gYLEwyIe4G6-xw_FwcbpjYXKEG3x0BvCBWxuAG0RDTpkf1-d3Gxzn_NdkYKZiG03n2vqIq9GUYWSBg2xzZWNtZW0tYWxsb2NlMC40LjBsc2VjbWVtX2FsbG9j
+ [__link0]: https://docs.rs/secmem-alloc/0.4.0/secmem_alloc/?search=zeroize_mem

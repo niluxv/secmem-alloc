@@ -1,6 +1,6 @@
 [package]
 name = "secmem-alloc"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["niluxv <niluxv.opensource.C-h2ty6xl@yandex.com>"]
 license = "MIT OR Apache-2.0"
 description = "Custom allocators for secret memory"

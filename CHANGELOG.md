@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0 - 2025-03-23
+### Added
+- Added `Display` and `Error` trait implementations for some error structs in no-std mode (i.e.
+  when the default `std` feature is disabled).
+
+### Changed
+- Updated MSRV to `1.85` and document MSRV policy.
+
+### Removed
+- **Breaking:** Removed the `nightly_strict_provenance` feature, as the strict provenance API is
+  now stabilised.
+
+### Internal
+- Updated `rustix` dependency to version `1`, `thiserror` to `2` and `windows` to `0.61.1`.
+
 ## 0.3.0 - 2024-08-20
 ### Changed
 - **Breaking:** Removed `boxed` module. `Box` is now available in the `allocator_api` module.
