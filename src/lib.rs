@@ -97,6 +97,14 @@
 //! - `dev` (requires nightly): This feature enables all features required to
 //!   run the test-suite, and should only be enabled for that purpose. This
 //!   feature currently requires a nightly compiler.
+//!
+//!
+//! # MSRV Policy
+//! Since this crate still depends on several nightly features for optimal
+//! functioning, the MSRV is expected to track the latest stable relatively
+//! closely. Therefore, we might bump the MSRV in patch version bumps. This
+//! shouldn't be an issue given the new MSRV aware dependency resolver in
+//! cargo. This policy might change as more unstable features get stabilised.
 
 extern crate alloc;
 
