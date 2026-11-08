@@ -1,14 +1,13 @@
 // for `volatile_memset`
 #![cfg_attr(feature = "nightly_core_intrinsics", feature(core_intrinsics))]
 #![cfg_attr(not(feature = "std"), no_std)]
-#![forbid(rust_2018_compatibility, unsafe_op_in_unsafe_fn)]
-#![deny(future_incompatible, rust_2018_idioms)]
+#![forbid(future_incompatible, unsafe_op_in_unsafe_fn)]
 #![warn(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 // on nightly, enable some unstable lints
 #![cfg_attr(
     feature = "nightly",
     feature(strict_provenance_lints),
-    deny(fuzzy_provenance_casts, lossy_provenance_casts)
+    deny(implicit_provenance_casts)
 )]
 //! `secmem-alloc` is a crate designed allocate private/secret memory. It is
 //! intended to be used for storing cryptographic secrets in memory. This crate
