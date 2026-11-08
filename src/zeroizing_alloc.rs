@@ -12,8 +12,7 @@
 use crate::util::debug_assert_abort;
 use crate::zeroize::zeroize_mem;
 use alloc::alloc::handle_alloc_error;
-use allocator_api2::alloc::{AllocError, Allocator};
-use core::alloc::{GlobalAlloc, Layout};
+use core::alloc::{AllocError, Allocator, GlobalAlloc, Layout};
 use core::ptr::NonNull;
 
 /// Wrapper around an allocator which zeroizes memory on deallocation. See the
@@ -125,7 +124,6 @@ unsafe impl<A: Allocator> Allocator for ZeroizeAlloc<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::allocator_api::{Box, Vec};
     use std::alloc::System;
 
     #[test]

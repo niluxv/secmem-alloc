@@ -26,8 +26,7 @@ use crate::util::{
     unlikely,
 };
 use crate::zeroize::zeroize_mem;
-use allocator_api2::alloc::{AllocError, Allocator};
-use core::alloc::Layout;
+use core::alloc::{AllocError, Allocator, Layout};
 use core::cell::Cell;
 use core::ptr::{self, NonNull};
 
@@ -668,7 +667,6 @@ unsafe impl Allocator for SecStackSinglePageAlloc {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::allocator_api::{Box, Vec};
     use std::mem::drop;
 
     #[derive(Copy, Clone, Debug, PartialEq, Eq)]

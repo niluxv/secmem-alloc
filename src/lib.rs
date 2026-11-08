@@ -20,7 +20,7 @@
 //! visible on the prompt; it is only to give an idea of how to use this crate.
 //!
 //! ```
-//! use secmem_alloc::allocator_api::{Allocator, Global, Vec};
+//! use std::alloc::{Allocator, Global};
 //! use secmem_alloc::zeroizing_alloc::ZeroizeAlloc;
 //!
 //! fn read_password<A: Allocator>(buf: &mut Vec<u8, A>) {
@@ -47,7 +47,7 @@
 //! written to swap.
 //!
 //! ```
-//! use secmem_alloc::allocator_api::{Allocator, Box};
+//! use core::alloc::Allocator;
 //! use secmem_alloc::sec_alloc::SecStackSinglePageAlloc;
 //!
 //! fn get_secret_key<A: Allocator>(buf: &mut Box<[u8; 256], A>) {
@@ -90,15 +90,6 @@
 //! cargo. This policy might change as more unstable features get stabilised.
 
 extern crate alloc;
-
-/// Re-exports the most important items of the [`allocator-api2` crate].
-///
-/// [`allocator-api2` crate]: https://crates.io/crates/allocator-api2
-pub mod allocator_api {
-    pub use allocator_api2::alloc::{Allocator, Global};
-    pub use allocator_api2::boxed::Box;
-    pub use allocator_api2::vec::Vec;
-}
 
 mod internals;
 mod util;

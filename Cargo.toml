@@ -10,7 +10,7 @@ keywords = ["allocator", "secure", "memory"]
 repository = "https://github.com/niluxv/secmem-alloc"
 include = ["src/**/*", "tests", "benches", "COPYING", "LICENSE.*", "README.md", "build.rs"]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.100"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -19,14 +19,13 @@ all-features = true
 
 [features]
 default = ["std"]
-std = ["allocator-api2/std", "thiserror/std"]
+std = ["thiserror/std"]
 nightly_core_intrinsics = []
 nightly = [
     "nightly_core_intrinsics",
 ]
 
 [dependencies]
-allocator-api2 = { version = "0.4", default-features = false }
 cfg-if = "1.0"
 thiserror = { version = "2", default-features = false }
 
