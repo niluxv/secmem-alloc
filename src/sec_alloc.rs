@@ -30,7 +30,6 @@ use allocator_api2::alloc::{AllocError, Allocator};
 use core::alloc::Layout;
 use core::cell::Cell;
 use core::ptr::{self, NonNull};
-use mirai_annotations::debug_checked_precondition;
 
 /// Memory allocator for confidential memory. See the module level
 /// documentation.
@@ -216,7 +215,7 @@ impl SecStackSinglePageAlloc {
     /// `align` must be a power of 2
     #[must_use]
     pub unsafe fn allocate_zerosized(align: usize) -> NonNull<[u8]> {
-        debug_checked_precondition!(align.is_power_of_two());
+        debug_assert!(align.is_power_of_two());
 
         // SAFETY: creating a pointer is safe, using it not; `dangling` is non-null
         let dangling: *mut u8 = ptr::without_provenance_mut(align);
@@ -245,7 +244,7 @@ impl SecStackSinglePageAlloc {
     ) -> Result<NonNull<[u8]>, AllocError> {
         // like the default implementation of `Allocator::shrink` in the standard
         // library
-        debug_checked_precondition!(
+        debug_assert!(
             new_layout.size() <= old_layout.size(),
             "`new_layout.size()` must be smaller than or equal to `old_layout.size()`"
         );
@@ -285,7 +284,7 @@ impl SecStackSinglePageAlloc {
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
         // like the default implementation of `Allocator::grow` in the standard library
-        debug_checked_precondition!(
+        debug_assert!(
             new_layout.size() >= old_layout.size(),
             "`new_layout.size()` must be greater than or equal to `old_layout.size()`"
         );
@@ -314,7 +313,7 @@ unsafe impl Allocator for SecStackSinglePageAlloc {
     // allows for fast zeroization and reduces the chance for (external) memory
     // fragmentation, at the cost of increased internal memory fragmentation.
     fn allocate_zeroed(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
-        debug_checked_precondition!(layout.align().is_power_of_two());
+        debug_assert!(layout.align().is_power_of_two());
 
         // catch zero sized allocations immediately so we do not have to bother with
         // them
@@ -429,10 +428,8 @@ unsafe impl Allocator for SecStackSinglePageAlloc {
 
         // `ptr` must be returned by this allocator, so it lies in the currently used
         // part of the memory page
-        debug_checked_precondition!(self.page.as_ptr().addr() <= ptr.as_ptr().addr());
-        debug_checked_precondition!(
-            ptr.as_ptr().addr() <= self.page.as_ptr().addr() + self.stack_offset.get()
-        );
+        debug_assert!(self.page.as_ptr().addr() <= ptr.as_ptr().addr());
+        debug_assert!(ptr.as_ptr().addr() <= self.page.as_ptr().addr() + self.stack_offset.get());
 
         // SAFETY: this `rounded_req_size` is identical to the value of
         // `rounded_req_size` in `self.allocate_zeroed` when the block was first
@@ -487,7 +484,7 @@ unsafe impl Allocator for SecStackSinglePageAlloc {
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        debug_checked_precondition!(
+        debug_assert!(
             new_layout.size() <= old_layout.size(),
             "`new_layout.size()` must be smaller than or equal to `old_layout.size()`"
         );
@@ -506,10 +503,8 @@ unsafe impl Allocator for SecStackSinglePageAlloc {
 
         // `ptr` must be returned by this allocator, so it lies in the currently used
         // part of the memory page
-        debug_checked_precondition!(self.page.as_ptr().addr() <= ptr.as_ptr().addr());
-        debug_checked_precondition!(
-            ptr.as_ptr().addr() <= self.page.as_ptr().addr() + self.stack_offset.get()
-        );
+        debug_assert!(self.page.as_ptr().addr() <= ptr.as_ptr().addr());
+        debug_assert!(ptr.as_ptr().addr() <= self.page.as_ptr().addr() + self.stack_offset.get());
 
         // check whether the existing allocation has the requested alignment
         if is_aligned_ptr(ptr.as_ptr(), new_layout.align()) {
@@ -579,7 +574,7 @@ unsafe impl Allocator for SecStackSinglePageAlloc {
         old_layout: Layout,
         new_layout: Layout,
     ) -> Result<NonNull<[u8]>, AllocError> {
-        debug_checked_precondition!(
+        debug_assert!(
             new_layout.size() >= old_layout.size(),
             "`new_layout.size()` must be greater than or equal to `old_layout.size()`"
         );
@@ -593,10 +588,8 @@ unsafe impl Allocator for SecStackSinglePageAlloc {
 
         // `ptr` must be returned by this allocator, so it lies in the currently used
         // part of the memory page
-        debug_checked_precondition!(self.page.as_ptr().addr() <= ptr.as_ptr().addr());
-        debug_checked_precondition!(
-            ptr.as_ptr().addr() <= self.page.as_ptr().addr() + self.stack_offset.get()
-        );
+        debug_assert!(self.page.as_ptr().addr() <= ptr.as_ptr().addr());
+        debug_assert!(ptr.as_ptr().addr() <= self.page.as_ptr().addr() + self.stack_offset.get());
 
         // check whether the existing allocation has the requested alignment
         if is_aligned_ptr(ptr.as_ptr(), new_layout.align()) {

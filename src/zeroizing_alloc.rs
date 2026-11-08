@@ -9,10 +9,7 @@
 //! in memory but not dropped. This can happen for example when resizing
 //! [`Vec`]s.
 
-use crate::macros::{
-    debug_handleallocerror_precondition, debug_handleallocerror_precondition_valid_layout,
-    precondition_memory_range,
-};
+use crate::util::debug_assert_abort;
 use crate::zeroize::zeroize_mem;
 use alloc::alloc::handle_alloc_error;
 use allocator_api2::alloc::{AllocError, Allocator};
@@ -42,10 +39,8 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for ZeroizeAlloc<A> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         // debug assertions
         // SAFETY: the allocator is not allowed to unwind (panic!)
-        // check that `layout` is a valid layout
-        debug_handleallocerror_precondition_valid_layout!(layout);
         // zero sized allocations are not allowed
-        debug_handleallocerror_precondition!(layout.size() != 0, layout);
+        debug_assert_abort!(layout.size() != 0);
 
         // SAFETY: caller must uphold the safety contract of `GlobalAlloc::alloc`.
         unsafe { self.backend_alloc.alloc(layout) }
@@ -55,13 +50,9 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for ZeroizeAlloc<A> {
         // debug assertions
         // SAFETY: the allocator is not allowed to unwind (panic!)
         // null pointers are never allowed
-        debug_handleallocerror_precondition!(!ptr.is_null(), layout);
-        // check that `layout` is a valid layout
-        debug_handleallocerror_precondition_valid_layout!(layout);
+        debug_assert_abort!(!ptr.is_null());
         // zero sized allocations are not allowed
-        debug_handleallocerror_precondition!(layout.size() != 0, layout);
-        // you can't wrap around the address space
-        precondition_memory_range!(ptr, layout.size());
+        debug_assert_abort!(layout.size() != 0);
 
         if cfg!(debug_assertions) {
             // you can't wrap around the address space
@@ -85,10 +76,8 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for ZeroizeAlloc<A> {
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         // debug assertions
         // SAFETY: the allocator is not allowed to unwind (panic!)
-        // check that `layout` is a valid layout
-        debug_handleallocerror_precondition_valid_layout!(layout);
         // zero sized allocations are not allowed
-        debug_handleallocerror_precondition!(layout.size() != 0, layout);
+        debug_assert_abort!(layout.size() != 0);
 
         // SAFETY: caller must uphold the safety contract of
         // `GlobalAlloc::alloc_zeroed`.
@@ -105,26 +94,14 @@ unsafe impl<A: GlobalAlloc> GlobalAlloc for ZeroizeAlloc<A> {
 
 unsafe impl<A: Allocator> Allocator for ZeroizeAlloc<A> {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
-        // debug assertions
-        // check that `layout` is a valid layout
-        debug_handleallocerror_precondition_valid_layout!(layout);
-
         self.backend_alloc.allocate(layout)
     }
 
     fn allocate_zeroed(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
-        // debug assertions
-        // check that `layout` is a valid layout
-        debug_handleallocerror_precondition_valid_layout!(layout);
-
         self.backend_alloc.allocate_zeroed(layout)
     }
 
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
-        // debug assertions
-        // check that `layout` is a valid layout
-        debug_handleallocerror_precondition_valid_layout!(layout);
-
         // securely wipe the deallocated memory
         // SAFETY: `ptr` is valid for writes of `layout.size()` bytes since it was
         // previously successfully allocated and not yet deallocated

@@ -28,7 +28,6 @@ nightly = [
 [dependencies]
 allocator-api2 = { version = "0.4", default-features = false }
 cfg-if = "1.0"
-mirai-annotations = "1.12"
 thiserror = { version = "2", default-features = false }
 
 [target.'cfg(unix)'.dependencies]
@@ -39,6 +38,3 @@ windows = { version = "0.62", features = ["Win32_System_SystemInformation", "Win
 
 [profile.release]
 codegen-units = 1
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(mirai)'] }

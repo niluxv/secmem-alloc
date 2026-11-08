@@ -10,8 +10,6 @@
 //! For good general purpose memory wiping use the [`zeroize`](https://crates.io/crates/zeroize)
 //! crate.
 
-use crate::macros::precondition_memory_range;
-
 cfg_if::cfg_if! {
     if #[cfg(miri)] {
         // when running miri we chose a pure rust zeroizer
@@ -41,7 +39,6 @@ mod nightly {
     /// see the [`std::ptr`] documentation. In particular this function is
     /// not atomic.
     pub unsafe fn zeroize_mem(ptr: *mut u8, len: usize) {
-        precondition_memory_range!(ptr, len);
         // SAFETY: the caller must uphold the safety contract
         unsafe {
             core::intrinsics::volatile_set_memory(ptr, 0, len);
@@ -67,7 +64,6 @@ mod asm_barier {
     /// see the [`std::ptr`] documentation. In particular this function is
     /// not atomic.
     pub unsafe fn zeroize_mem(ptr: *mut u8, len: usize) {
-        precondition_memory_range!(ptr, len);
         // SAFETY: the caller must uphold the safety contract of `write_bytes`
         unsafe { ptr.write_bytes(0, len) };
         // Optimisation barier, so the writes can not be optimised out
@@ -99,7 +95,6 @@ mod fallback {
     /// see the [`std::ptr`] documentation. In particular this function is
     /// not atomic.
     pub unsafe fn zeroize_mem(mut ptr: *mut u8, len: usize) {
-        precondition_memory_range!(ptr, len);
         for _i in 0..len {
             // SAFETY: `ptr` originally pointed into an allocation of `len` bytes so now,
             // after `_i` steps `len - _i > 0` bytes are left, so `ptr` is valid for

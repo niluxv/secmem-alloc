@@ -101,7 +101,6 @@ pub mod allocator_api {
 }
 
 mod internals;
-mod macros;
 mod util;
 mod zeroize;
 

@@ -46,6 +46,3 @@ dist-clean: clean
 
 generate-readme:
     cargo doc2readme
-
-mirai:
-    env MIRAI_FLAGS="--diag=library" cargo mirai
